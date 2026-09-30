@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<!--
+  APON (আপন) PITCH MVP  |  single self-contained file
+  Handover notes: see HANDOVER.md in the zip this file came with.
+  Structure of this file:
+    1. style block: design tokens (:root), components, Bangla-mode rules (html[lang="bn"]), responsive rules
+    2. body: static shell: header, language switch, nav, footer (text swapped via data-en / data-bn)
+    3. script block: (a) helpers + i18n  (b) seed demo data  (c) scoring logic  (d) screen renderers
+                 (e) AI call engine + script  (f) events + init
+  Every user-facing string is written as x('English','বাংলা'). Language choice is saved in localStorage.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Apon (আপন): warm AI companion calls for older parents, with gentle insights for their families. Pitch prototype.">
+<title>Apon (আপন) | Companion calls for families</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&family=Hind+Siliguri:wght@400;500;600&family=Noto+Serif+Bengali:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+:root{
+  --paper:#F8F3EA;
+  --paper-deep:#EFE5D3;
+  --card:#FFFCF6;
+  --green:#2F6B5F;
+  --green-deep:#1F4A41;
+  --green-ink:#163730;
+  --green-soft:#DCE8E1;
+  --green-mist:#EAF2ED;
+  --sun:#E39B5A;
+  --sun-light:#F2C79D;
+  --sun-soft:#F8E4CF;
+  --sun-ink:#7A441A;
+  --ink:#1D2420;
+  --ink-2:#4A544E;
+  --ink-3:#6F7872;
+  --alert:#D66B5A;
+  --alert-soft:#F7DDD6;
+  --alert-ink:#8E3526;
+  --line:rgba(29,36,32,.13);
+  --line-2:rgba(29,36,32,.075);
+  --serif:'Fraunces','Noto Serif Bengali','Hind Siliguri',Georgia,'Times New Roman',serif;
+  --sans:'Manrope','Hind Siliguri',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --bn:'Hind Siliguri','Noto Sans Bengali','Manrope',system-ui,sans-serif;
+  --shadow:0 1px 0 rgba(29,36,32,.04),0 22px 44px -28px rgba(92,62,26,.42);
+  --shadow-lg:0 40px 70px -34px rgba(58,38,14,.55);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;min-height:100vh;font-family:var(--sans);font-size:16px;line-height:1.55;color:var(--ink);
+  background-color:var(--paper);
+  background-image:
+    radial-gradient(1000px 540px at 92% -10%,rgba(227,155,90,.20),transparent 62%),
+    radial-gradient(760px 620px at -14% 42%,rgba(47,107,95,.085),transparent 62%);
+  background-repeat:no-repeat;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;opacity:.55;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .36 0 0 0 0 .27 0 0 0 0 .15 0 0 0 .09 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+::selection{background:var(--sun-light);color:var(--ink)}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2.5px solid var(--sun);outline-offset:3px;border-radius:8px}
+[lang="bn"]{font-family:var(--bn)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ic{width:20px;height:20px;flex:none}
+
+/* ---------- Type ---------- */
+.display{font-family:var(--serif);font-weight:370;font-size:clamp(2.7rem,5.6vw,5.1rem);line-height:.99;letter-spacing:-.03em;margin:0;text-wrap:balance}
+.h2{font-family:var(--serif);font-weight:400;font-size:clamp(1.85rem,3.3vw,2.75rem);line-height:1.07;letter-spacing:-.022em;margin:0;text-wrap:balance}
+.h3{font-family:var(--serif);font-weight:500;font-size:1.3rem;line-height:1.2;letter-spacing:-.01em;margin:0}
+.kicker{font-size:14.5px;font-weight:600;color:var(--green);margin:0 0 14px}
+.lede{font-size:clamp(1.05rem,1.35vw,1.18rem);line-height:1.62;color:var(--ink-2);max-width:34em;margin:20px 0 0}
+.small{font-size:14px;line-height:1.5}
+.muted{color:var(--ink-3)}
+
+/* ---------- Buttons ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:13px 21px;border-radius:999px;border:0;font-weight:700;font-size:15px;cursor:pointer;text-decoration:none;transition:background .18s,transform .12s,box-shadow .18s;white-space:nowrap}
+.btn:active{transform:translateY(1px)}
+.btn .ic{width:18px;height:18px}
+.btn.sm{padding:9px 15px;font-size:14px}
+.btn-primary{background:var(--green);color:var(--paper)}
+.btn-primary:hover{background:var(--green-deep)}
+.btn-sun{background:var(--sun);color:var(--ink)}
+.btn-sun:hover{background:#EAA96D}
+.btn-ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--line)}
+.btn-ghost:hover{box-shadow:inset 0 0 0 1.5px rgba(29,36,32,.35)}
+.btn-light{background:rgba(248,243,234,.12);color:var(--paper);box-shadow:inset 0 0 0 1px rgba(255,255,255,.24)}
+.btn-light:hover{background:rgba(248,243,234,.2)}
+.link{background:none;border:0;padding:0;color:var(--green);font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1.5px;font-size:15px}
+.link:hover{color:var(--green-deep)}
+
+/* ---------- Header ---------- */
+.top{position:sticky;top:0;z-index:40;background:rgba(248,243,234,.86);-webkit-backdrop-filter:saturate(1.2) blur(12px);backdrop-filter:saturate(1.2) blur(12px);border-bottom:1px solid var(--line-2);padding-top:env(safe-area-inset-top,0px)}
+.top-in{max-width:1200px;margin:0 auto;padding:13px 28px;display:flex;align-items:center;gap:24px}
+.brand{display:flex;align-items:center;gap:10px;background:none;border:0;padding:0;cursor:pointer}
+.brand-name{font-family:var(--serif);font-size:27px;font-weight:600;letter-spacing:-.025em;line-height:1}
+.brand-bn{font-size:17px;color:var(--green);font-weight:500;transform:translateY(2px)}
+.tabs{display:flex;gap:2px;margin-left:auto}
+@media (max-width:1120px) and (min-width:821px){.who>span:last-child{display:none}.tab{padding:10px 11px}}
+.tab{position:relative;background:none;border:0;padding:10px 15px;font-weight:600;font-size:14.5px;color:var(--ink-2);cursor:pointer;border-radius:12px}
+.tab:hover{color:var(--ink)}
+.tab.on{color:var(--ink)}
+.tab.on::after{content:"";position:absolute;left:50%;bottom:1px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--sun)}
+.who{display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.25;color:var(--ink-2);padding-left:18px;border-left:1px solid var(--line)}
+.who b{color:var(--ink);font-size:14px}
+.who-av{width:34px;height:34px;border-radius:50%;background:var(--sun-soft);color:var(--sun-ink);display:grid;place-items:center;font-weight:800;font-size:14px}
+
+.bnav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:45;background:rgba(248,243,234,.96);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px))}
+.bnav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;font-size:11.5px;font-weight:700;color:var(--ink-3);padding:6px 0;cursor:pointer}
+.bnav button .ic{width:22px;height:22px}
+.bnav button.on{color:var(--green)}
+
+/* ---------- Layout ---------- */
+.wrap{max-width:1200px;margin:0 auto;padding-left:28px;padding-right:28px}
+main.wrap{padding-top:34px;padding-bottom:40px}
+.view{display:none}
+.view.on{display:block;animation:viewIn .35s ease-out}
+@keyframes viewIn{from{opacity:0}to{opacity:1}}
+.sec{padding:60px 0 8px;border-top:1px solid var(--line);margin-top:48px}
+.sec-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px 32px;flex-wrap:wrap;margin-bottom:28px}
+.sec-head .h2{max-width:22ch}
+
+/* ---------- Home: hero ---------- */
+.hero{display:grid;grid-template-columns:1.12fr .88fr;gap:40px;align-items:center;padding:18px 0 10px}
+.cta-row{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}
+.hero-art{position:relative;height:570px}
+.hero-blob{position:absolute;inset:5% 1% 3% 9%;background:var(--green-soft);border-radius:58% 42% 54% 46%/47% 56% 44% 53%}
+.hero-sun{position:absolute;width:150px;height:150px;border-radius:50%;top:1%;right:5%;background:radial-gradient(circle at 34% 32%,#F5C898,#E39B5A 58%,#D88944)}
+.ring-card{position:absolute;left:54%;top:43%;transform:translate(-50%,-50%);width:292px;background:linear-gradient(172deg,#2A6356,#173A33);color:var(--paper);border-radius:36px;padding:28px 24px 26px;box-shadow:var(--shadow-lg);text-align:center}
+.ring-k{font-size:13px;opacity:.72;margin:0}
+.ring-av{width:94px;height:94px;margin:22px auto 18px;position:relative;display:grid;place-items:center;border-radius:50%;background:var(--paper)}
+.ring-av::before,.ring-av::after{content:"";position:absolute;inset:-9px;border-radius:50%;border:2px solid rgba(242,199,157,.7);animation:ring 2.6s ease-out infinite}
+.ring-av::after{animation-delay:1.3s}
+@keyframes ring{from{transform:scale(.92);opacity:1}to{transform:scale(1.6);opacity:0}}
+.ring-name{font-family:var(--serif);font-size:32px;font-weight:500;line-height:1}
+.ring-bn{font-size:17px;color:var(--sun-light);margin-top:5px}
+.ring-msg{margin:14px 0 0;font-size:15.5px;opacity:.92}
+.ring-actions{display:flex;justify-content:space-between;margin-top:30px;padding:0 12px}
+.ring-actions>div{display:flex;flex-direction:column;align-items:center;gap:7px;font-size:12.5px;opacity:.95}
+.round{width:62px;height:62px;border-radius:50%;border:0;display:grid;place-items:center;cursor:pointer;color:#fff;transition:transform .15s}
+.round:hover{transform:scale(1.05)}
+.round .ic{width:26px;height:26px}
+.round.no{background:var(--alert)}
+.round.no .ic{transform:rotate(135deg)}
+.round.yes{background:#4E9F86}
+.pulse{animation:pulse 1.7s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(78,159,134,.65)}50%{box-shadow:0 0 0 15px rgba(78,159,134,0)}}
+.note-card{position:absolute;left:0;bottom:0;z-index:2;width:250px;background:var(--card);border-radius:20px 20px 20px 6px;padding:15px 17px;box-shadow:var(--shadow);font-size:13.5px;line-height:1.45;transform:rotate(-2.2deg)}
+.note-card b{display:flex;align-items:center;gap:7px;font-size:14px;margin-bottom:4px}
+.note-card b .ic{color:var(--green);width:18px;height:18px}
+
+/* ---------- Home: today ---------- */
+.today-grid{display:grid;grid-template-columns:1.38fr 1fr;gap:34px;align-items:start}
+.ledger{background:var(--card);border-radius:30px;padding:6px 28px;box-shadow:var(--shadow)}
+.lrow{display:grid;grid-template-columns:46px 1fr 14px;gap:16px;align-items:center;padding:17px 0;border-bottom:1px solid var(--line-2)}
+.lrow:last-child{border-bottom:0}
+.lic{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:var(--green-mist);color:var(--green)}
+.lic.sun{background:var(--sun-soft);color:var(--sun-ink)}
+.llabel{font-size:13.5px;color:var(--ink-3);font-weight:600}
+.lval{font-family:var(--serif);font-size:1.28rem;font-weight:500;line-height:1.2;margin-top:1px;display:flex;align-items:center;gap:8px}
+.lval .ic{color:var(--green);width:19px;height:19px}
+.lsub{font-size:14px;color:var(--ink-2);margin-top:2px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--green);justify-self:end}
+.dot.soft{background:var(--sun)}
+.dot.warn{background:var(--alert)}
+.convo{margin-top:30px;padding-left:4px}
+.convo ul{list-style:none;margin:14px 0 0;padding:0}
+.convo li{position:relative;padding:8px 0 8px 26px;color:var(--ink-2);font-size:15.5px}
+.convo li::before{content:"";position:absolute;left:4px;top:17px;width:9px;height:9px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--sun)}
+.action{position:relative;overflow:hidden;background:var(--green-deep);color:var(--paper);border-radius:34px 34px 34px 10px;padding:34px 30px 32px;box-shadow:var(--shadow-lg);margin-top:40px}
+.action::after{content:"";position:absolute;width:230px;height:230px;border-radius:50%;right:-80px;bottom:-110px;background:radial-gradient(circle at 40% 35%,#F0B47C,#E39B5A 60%);opacity:.92}
+.action>*{position:relative;z-index:1}
+.action-k{color:var(--sun-light);font-size:14px;font-weight:600;margin:0}
+.action-t{font-family:var(--serif);font-size:clamp(2.1rem,3.4vw,2.8rem);font-weight:400;line-height:1.02;letter-spacing:-.022em;margin:12px 0 14px}
+.action-why{color:rgba(248,243,234,.84);max-width:25em;margin:0}
+.action-btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px;max-width:280px}
+.action-done{display:flex;align-items:center;gap:10px;margin-top:24px;font-weight:700;color:var(--sun-light)}
+
+.week{display:grid;grid-template-columns:repeat(5,1fr);background:var(--paper-deep);border-radius:28px;padding:8px}
+.wk{padding:18px 18px 16px;border-radius:22px}
+.wk + .wk{box-shadow:-1px 0 0 rgba(29,36,32,.08)}
+.wk-l{font-size:13.5px;font-weight:600;color:var(--ink-3)}
+.wk-v{font-family:var(--serif);font-size:1.2rem;font-weight:500;margin:3px 0 12px;display:flex;gap:6px;align-items:baseline}
+.wk-v .arr{font-family:var(--sans);font-size:15px;color:var(--sun-ink)}
+.wk-v.warn .arr{color:var(--alert-ink)}
+.mini{display:flex;gap:4px;align-items:flex-end;height:28px}
+.mini i{flex:1;border-radius:3px;background:var(--green);opacity:.72;min-height:3px}
+.mini i.soft{background:var(--sun);opacity:.9}
+
+.flow{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;position:relative;counter-reset:f}
+.flow::before{content:"";position:absolute;top:23px;left:46px;right:14%;border-top:1.5px dashed rgba(47,107,95,.4)}
+.fstep{position:relative}
+.fnum{width:46px;height:46px;border-radius:50%;background:var(--paper);box-shadow:inset 0 0 0 1.5px var(--green);display:grid;place-items:center;font-family:var(--serif);font-size:19px;color:var(--green);position:relative}
+.fstep:nth-child(2) .fnum{background:var(--green);color:var(--paper)}
+.fstep:nth-child(3) .fnum{background:var(--sun);box-shadow:none;color:var(--ink)}
+.fstep h3{margin:18px 0 8px}
+.fstep p{margin:0;color:var(--ink-2);max-width:30ch}
+
+.remember-home{display:grid;grid-template-columns:1fr auto;gap:28px;align-items:center;background:var(--sun-soft);border-radius:44px 44px 44px 12px;padding:40px 44px}
+.quote{font-family:var(--serif);font-style:italic;font-weight:350;font-size:clamp(1.55rem,2.8vw,2.35rem);line-height:1.18;letter-spacing:-.015em;margin:0;max-width:26ch}
+.quote-by{margin:14px 0 0;font-size:14.5px;color:var(--sun-ink);font-weight:600}
+
+.foot{padding-top:40px;padding-bottom:60px}
+.foot-in{border-top:1px solid var(--line);padding-top:26px;display:flex;justify-content:space-between;gap:20px 40px;flex-wrap:wrap;font-size:13.5px;color:var(--ink-3)}
+.foot-in p{margin:0;max-width:62ch}
+
+/* ---------- AI Call ---------- */
+.call-top{display:grid;grid-template-columns:1fr auto;gap:24px 40px;align-items:end}
+.ctrls{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.ctrl-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.switch{display:inline-flex;align-items:center;gap:11px;background:none;border:0;font-weight:700;font-size:14.5px;cursor:pointer;padding:4px 2px}
+.sw{width:42px;height:25px;border-radius:999px;background:rgba(29,36,32,.2);position:relative;transition:background .2s;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}
+.switch[aria-pressed="true"] .sw{background:var(--green)}
+.switch[aria-pressed="true"] .sw::after{transform:translateX(17px)}
+.fbtn{padding:8px 15px;border-radius:999px;border:0;box-shadow:inset 0 0 0 1.5px var(--line);background:transparent;font-weight:600;font-size:14px;cursor:pointer;color:var(--ink-2)}
+.fbtn:hover{color:var(--ink)}
+.fbtn.on{background:var(--ink);color:var(--paper);box-shadow:none}
+.fbtn:disabled{opacity:.4;cursor:not-allowed}
+.call-grid{display:grid;grid-template-columns:auto 1fr;gap:44px;align-items:start;margin-top:34px}
+.phone-col{display:flex;flex-direction:column;align-items:center;gap:14px}
+.phone{width:352px;height:724px;background:#151917;border-radius:54px;padding:12px;box-shadow:0 44px 80px -34px rgba(46,32,12,.6),inset 0 0 0 1.5px #2C322E;position:relative}
+.notch{position:absolute;top:22px;left:50%;transform:translateX(-50%);width:98px;height:27px;border-radius:15px;background:#0E110F;z-index:5}
+.screen{height:100%;border-radius:43px;overflow:hidden;background:linear-gradient(172deg,#2A6356 0%,#1C443B 55%,#15342D 100%);color:var(--paper);display:flex;flex-direction:column;position:relative}
+.sbar{display:flex;justify-content:space-between;align-items:center;padding:16px 30px 0;font-size:13px;font-weight:700;height:46px;flex:none}
+.batt{width:24px;height:12px;border-radius:4px;box-shadow:inset 0 0 0 1.5px rgba(248,243,234,.8);padding:2px;display:flex}
+.batt i{flex:0 0 70%;background:var(--paper);border-radius:2px}
+.lock{flex:1;display:flex;flex-direction:column;align-items:center;padding:30px 22px 34px;text-align:center}
+.lock-time{font-family:var(--serif);font-size:76px;font-weight:300;line-height:1;letter-spacing:-.035em;margin-top:28px}
+.lock-date{font-size:14px;opacity:.8;margin-top:8px}
+.notif{margin-top:auto;margin-bottom:20px;width:100%;display:flex;gap:12px;align-items:center;text-align:left;background:rgba(248,243,234,.11);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);border-radius:22px;padding:14px}
+.notif b{display:block;font-size:14px}
+.notif span{font-size:13px;opacity:.8}
+.mk{width:42px;height:42px;border-radius:13px;background:var(--paper);display:grid;place-items:center;flex:none}
+.incoming{flex:1;display:flex;flex-direction:column;align-items:center;padding:34px 24px 44px;text-align:center}
+.incoming .ring-av{width:118px;height:118px;margin:26px auto 24px}
+.incoming .ring-name{font-size:38px}
+.incoming .ring-actions{margin-top:auto;width:100%;padding:0 20px}
+.state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 28px 40px;text-align:center;gap:4px}
+.state h3{font-family:var(--serif);font-weight:400;font-size:30px;margin:14px 0 2px;letter-spacing:-.02em}
+.state p{margin:6px 0 0;opacity:.85;font-size:14.5px;max-width:26ch}
+.state .btns{display:flex;flex-direction:column;gap:10px;margin-top:26px;width:100%;max-width:230px}
+.end-ic{width:64px;height:64px;border-radius:50%;background:var(--sun);color:var(--ink);display:grid;place-items:center}
+.end-ic .ic{width:30px;height:30px}
+.end-ic.miss{background:rgba(214,107,90,.95);color:#fff}
+.end-ic.miss .ic{transform:rotate(135deg)}
+.chead{display:flex;align-items:center;gap:12px;padding:8px 18px 14px;border-bottom:1px solid rgba(255,255,255,.08);flex:none}
+.cname{font-family:var(--serif);font-size:19px;font-weight:500;line-height:1.1}
+.cname span{font-size:14px;color:var(--sun-light);margin-left:4px}
+.cclock{font-size:12.5px;opacity:.75;font-variant-numeric:tabular-nums;margin-top:2px}
+.wave{margin-left:auto;display:flex;gap:3px;align-items:center;height:24px}
+.wave i{width:3px;height:4px;border-radius:2px;background:var(--sun-light);opacity:.6}
+.wave.on i{animation:wv .9s ease-in-out infinite;opacity:1}
+.wave.on i:nth-child(2){animation-delay:.12s}.wave.on i:nth-child(3){animation-delay:.24s}.wave.on i:nth-child(4){animation-delay:.36s}.wave.on i:nth-child(5){animation-delay:.18s}.wave.on i:nth-child(6){animation-delay:.3s}
+@keyframes wv{0%,100%{height:4px}50%{height:21px}}
+.hang{width:36px;height:36px;border-radius:50%;border:0;background:var(--alert);color:#fff;display:grid;place-items:center;cursor:pointer;flex:none}
+.hang .ic{width:17px;height:17px;transform:rotate(135deg)}
+.caps{flex:1;overflow-y:auto;padding:14px 14px 10px;display:flex;flex-direction:column;gap:9px;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.2) transparent}
+.caps-note{font-size:11.5px;text-align:center;opacity:.6;margin:0 10px 4px;line-height:1.4}
+.bub{max-width:88%;padding:10px 14px}
+.bub.fresh{animation:bub .32s ease-out}
+@keyframes bub{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.bub .bn{font-size:15.5px;line-height:1.45}
+.bub .en{font-size:12px;line-height:1.4;margin-top:3px;opacity:.7}
+.bub.ap{align-self:flex-start;background:rgba(248,243,234,.96);color:var(--ink);border-radius:19px 19px 19px 6px}
+.bub.us{align-self:flex-end;background:var(--sun-light);color:#2B1B0C;border-radius:19px 19px 6px 19px}
+.typing{align-self:flex-start;display:flex;gap:4px;padding:12px 14px;background:rgba(248,243,234,.13);border-radius:16px}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--paper);animation:blink 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,100%{opacity:.25}50%{opacity:.9}}
+.replies{flex:none;padding:11px 13px 16px;border-top:1px solid rgba(255,255,255,.08);background:rgba(8,22,18,.32);min-height:92px}
+.rep-l{font-size:12px;opacity:.72;margin:0 4px 4px;display:flex;justify-content:space-between;gap:10px}
+.rep-wait{font-size:13px;opacity:.7;padding:16px 6px;text-align:center}
+.opt{display:block;width:100%;text-align:left;background:rgba(255,255,255,.07);border:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.17);color:var(--paper);border-radius:16px;padding:9px 13px;margin-top:7px;cursor:pointer;transition:background .15s}
+.opt:hover{background:rgba(255,255,255,.14)}
+.opt .bn{font-size:14.5px;line-height:1.35}
+.opt .en{font-size:11.5px;opacity:.66;margin-top:1px;line-height:1.35}
+.opt.picked{background:var(--sun-light);color:#2B1B0C;box-shadow:none}
+.phone-note{font-size:13px;color:var(--ink-3);max-width:320px;text-align:center;margin:0}
+
+.pipe{background:var(--card);border-radius:34px;padding:30px 30px 26px;box-shadow:var(--shadow)}
+.pipe-head{display:flex;justify-content:space-between;gap:16px;align-items:baseline;flex-wrap:wrap}
+.stages{display:grid;grid-template-columns:repeat(4,1fr);margin:24px 0 22px}
+.stg{position:relative;padding-right:12px}
+.stg::before{content:"";position:absolute;top:17px;left:36px;right:2px;height:1.5px;background:var(--line)}
+.stg:last-child::before{display:none}
+.stg-dot{width:36px;height:36px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--line);display:grid;place-items:center;font-family:var(--serif);font-size:15px;background:var(--paper);position:relative;color:var(--ink-3)}
+.stg-dot .ic{width:18px;height:18px}
+.stg.live .stg-dot{box-shadow:inset 0 0 0 2px var(--sun),0 0 0 5px rgba(227,155,90,.2);background:var(--sun-soft);color:var(--sun-ink)}
+.stg.done .stg-dot{background:var(--green);box-shadow:none;color:var(--paper)}
+.stg.done::before{background:var(--green)}
+.stg-t{font-weight:700;font-size:14px;margin-top:11px;line-height:1.3}
+.stg-s{font-size:12.5px;color:var(--ink-3);line-height:1.4;margin-top:3px;padding-right:6px}
+.feed-h{display:flex;justify-content:space-between;font-size:13.5px;font-weight:700;color:var(--ink-2);padding-bottom:10px;border-bottom:1px solid var(--line-2)}
+.feed{list-style:none;margin:0;padding:0;max-height:300px;overflow:auto}
+.feed li{display:grid;grid-template-columns:118px 1fr 10px;gap:12px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--line-2);font-size:14px}
+.feed li.fresh{animation:bub .32s ease-out}
+.tag{font-size:12.5px;font-weight:700;color:var(--green)}
+.feed .dot{width:8px;height:8px}
+.empty{padding:22px 0 8px;color:var(--ink-2);max-width:48ch}
+.empty p{margin:0 0 10px}
+.cmp{margin-top:22px;background:var(--green-mist);border-radius:22px;padding:18px 20px}
+.cmp h4{margin:0 0 8px;font-size:14.5px}
+.cmp table{width:100%;border-collapse:collapse;font-size:13.5px}
+.cmp th{text-align:left;font-weight:600;color:var(--ink-3);padding:6px 8px 6px 0;font-size:12.5px}
+.cmp td{padding:7px 8px 7px 0;border-top:1px solid rgba(47,107,95,.13);vertical-align:top}
+.cmp td:first-child{font-weight:700}
+.working{display:flex;align-items:center;gap:10px;color:var(--green-deep);font-weight:600;font-size:14px}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(47,107,95,.25);border-top-color:var(--green);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.prod{display:flex;gap:12px;margin-top:22px;padding-top:18px;border-top:1px solid var(--line-2);font-size:13.5px;color:var(--ink-2)}
+.prod .ic{color:var(--green);margin-top:2px}
+.prod p{margin:0}
+
+/* ---------- Pills ---------- */
+.pill{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:12.5px;padding:5px 11px 5px 9px;border-radius:999px;white-space:nowrap;background:var(--green-mist);color:var(--green-deep)}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.85}
+.pill.soft{background:var(--sun-soft);color:var(--sun-ink)}
+.pill.warn{background:var(--alert-soft);color:var(--alert-ink)}
+
+/* ---------- Patient ---------- */
+.pt-grid{display:grid;grid-template-columns:370px 1fr;gap:48px;align-items:start}
+.portrait{position:sticky;top:96px;background:var(--card);border-radius:38px 38px 38px 12px;padding:32px;box-shadow:var(--shadow)}
+.pt-av{width:118px;height:118px;border-radius:58% 42% 54% 46%/47% 56% 44% 53%;background:linear-gradient(150deg,var(--green),var(--green-deep));color:var(--paper);display:grid;place-items:center;font-family:var(--serif);font-size:42px;font-weight:400;position:relative}
+.pt-av::after{content:"";position:absolute;width:30px;height:30px;border-radius:50%;background:var(--sun);right:-4px;top:4px}
+.pt-name{font-family:var(--serif);font-size:2.3rem;font-weight:400;line-height:1.04;letter-spacing:-.022em;margin:22px 0 4px}
+.facts{margin:22px 0 22px;padding:0;list-style:none}
+.facts li{display:grid;grid-template-columns:22px 1fr;gap:12px;padding:12px 0;border-top:1px solid var(--line-2);font-size:14.5px;color:var(--ink-2)}
+.facts li .ic{color:var(--green);margin-top:1px}
+.facts b{color:var(--ink);font-weight:700}
+.block{padding:30px 0;border-bottom:1px solid var(--line)}
+.block:first-child{padding-top:4px}
+.block:last-child{border-bottom:0}
+.block-h{display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin-bottom:14px;flex-wrap:wrap}
+.block p{margin:0;color:var(--ink-2);max-width:60ch}
+.chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:8px 10px 8px 15px;border-radius:999px;background:var(--green-mist);color:var(--green-deep);font-weight:600;font-size:14.5px}
+.chip button{width:22px;height:22px;border-radius:50%;border:0;background:rgba(47,107,95,.12);display:grid;place-items:center;cursor:pointer;color:var(--green-deep);padding:0}
+.chip button .ic{width:13px;height:13px}
+.chip-add{display:flex;gap:8px;margin-top:14px;max-width:420px}
+.baseline{display:grid;grid-template-columns:repeat(3,1fr);gap:0;background:var(--card);border-radius:26px;box-shadow:var(--shadow);overflow:hidden}
+.bl{padding:18px 20px;box-shadow:inset -1px -1px 0 var(--line-2)}
+.bl-l{font-size:13px;font-weight:700;color:var(--ink-3)}
+.bl-v{font-family:var(--serif);font-size:1.35rem;margin:3px 0 2px}
+.bl-d{font-size:12.5px;color:var(--ink-3);line-height:1.4}
+.consent{display:flex;gap:14px;background:var(--green-mist);border-radius:22px;padding:18px 20px}
+.consent .ic{color:var(--green);margin-top:2px}
+.field{display:block;margin-top:14px}
+.field>span{display:block;font-size:13px;font-weight:700;color:var(--ink-2);margin-bottom:6px}
+.input{width:100%;font:inherit;font-size:15px;padding:11px 14px;border-radius:14px;border:0;box-shadow:inset 0 0 0 1.5px var(--line);background:var(--paper);color:var(--ink)}
+textarea.input{resize:vertical;min-height:84px;line-height:1.5}
+.input:focus{outline:none;box-shadow:inset 0 0 0 2px var(--green),0 0 0 4px rgba(47,107,95,.13)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.err{color:var(--alert-ink);font-size:13.5px;font-weight:600;margin:12px 0 0}
+.form-btns{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+
+/* ---------- Memory ---------- */
+.remember{display:grid;grid-template-columns:auto 1fr;gap:30px;align-items:center;background:var(--sun-soft);border-radius:46px 46px 46px 12px;padding:36px 42px;margin:30px 0 36px}
+.remember-mark{width:92px;height:92px;border-radius:50%;background:var(--card);display:grid;place-items:center;box-shadow:var(--shadow)}
+.mtools{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.filters{display:flex;gap:8px;flex-wrap:wrap}
+.fbtn .n{opacity:.6;margin-left:5px;font-weight:700}
+.addpanel{background:var(--card);border-radius:30px;padding:26px 28px;box-shadow:var(--shadow);margin-top:22px}
+.addpanel .row2{grid-template-columns:1fr 1fr}
+.mgrid{columns:3 290px;column-gap:22px;margin-top:26px}
+.mcard{break-inside:avoid;margin:0 0 22px;border-radius:28px;padding:22px 22px 12px;position:relative;background:var(--card);box-shadow:var(--shadow)}
+.mcard.story{background:var(--green-deep);color:var(--paper);box-shadow:var(--shadow-lg);border-radius:28px 28px 28px 8px}
+.mcard.hobby{background:var(--green-mist);box-shadow:none}
+.mcard.routine{background:var(--paper-deep);box-shadow:none}
+.mcard.pinned{box-shadow:0 0 0 2.5px var(--sun),var(--shadow)}
+.m-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.m-type{font-size:13px;font-weight:700;color:var(--green)}
+.story .m-type{color:var(--sun-light)}
+.m-title{font-family:var(--serif);font-size:1.5rem;font-weight:500;line-height:1.12;letter-spacing:-.015em;margin:6px 0 8px}
+.family .m-title{font-size:1.75rem}
+.m-detail{margin:0;font-size:15px;color:var(--ink-2)}
+.story .m-detail{font-family:var(--serif);font-style:italic;font-size:1.12rem;line-height:1.45;color:rgba(248,243,234,.92)}
+.m-av{width:44px;height:44px;border-radius:50%;background:var(--sun-soft);color:var(--sun-ink);display:grid;place-items:center;font-family:var(--serif);font-size:19px;flex:none}
+.m-icon{width:44px;height:44px;border-radius:14px;background:var(--card);color:var(--green);display:grid;place-items:center;flex:none}
+.story .m-icon{background:rgba(248,243,234,.12);color:var(--sun-light)}
+.m-starter{margin:12px 0 0;font-size:14px;padding:10px 12px;border-radius:14px;background:rgba(47,107,95,.07);color:var(--ink-2)}
+.story .m-starter{background:rgba(248,243,234,.1);color:rgba(248,243,234,.85)}
+.m-gentle{margin:12px 0 0;font-size:13.5px;color:var(--sun-ink);font-weight:600}
+.mfoot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:6px;border-top:1px solid var(--line-2);gap:10px}
+.story .mfoot{border-color:rgba(255,255,255,.13)}
+.m-by{font-size:12.5px;color:var(--ink-3)}
+.story .m-by{color:rgba(248,243,234,.6)}
+.pinbtn{display:inline-flex;gap:6px;align-items:center;background:none;border:0;font-size:13.5px;font-weight:700;color:var(--green);cursor:pointer;padding:8px 0}
+.pinbtn .ic{width:16px;height:16px}
+.story .pinbtn{color:var(--sun-light)}
+.pinned .pinbtn{color:var(--sun-ink)}
+.story.pinned .pinbtn{color:var(--sun-light)}
+.delbtn{width:32px;height:32px;border-radius:50%;border:0;background:transparent;color:var(--ink-3);display:grid;place-items:center;cursor:pointer}
+.delbtn:hover{background:rgba(29,36,32,.07);color:var(--alert-ink)}
+.story .delbtn{color:rgba(248,243,234,.6)}
+.story .delbtn:hover{background:rgba(255,255,255,.1);color:#fff}
+.delbtn .ic{width:17px;height:17px}
+.flag{display:inline-block;font-size:12px;font-weight:800;background:var(--sun);color:var(--ink);padding:3px 9px;border-radius:999px;margin-bottom:10px}
+.m-empty{padding:40px 0;color:var(--ink-2)}
+
+/* ---------- Insights ---------- */
+.ins-top{display:grid;grid-template-columns:1.25fr .75fr;gap:40px;align-items:end}
+.recall{background:var(--green-deep);color:var(--paper);border-radius:34px 34px 10px 34px;padding:28px 30px;box-shadow:var(--shadow-lg);position:relative;overflow:hidden}
+.recall::after{content:"";position:absolute;width:120px;height:120px;border-radius:50%;background:var(--sun);right:-38px;top:-42px;opacity:.9}
+.recall>*{position:relative;z-index:1}
+.recall-k{font-size:14px;font-weight:600;color:var(--sun-light);margin:0}
+.recall-n{font-family:var(--serif);font-size:4.4rem;line-height:1;font-weight:330;letter-spacing:-.04em;margin:14px 0 4px}
+.recall-n span{font-size:1.6rem;opacity:.75;letter-spacing:0}
+.recall p{margin:0;font-size:14px;color:rgba(248,243,234,.82)}
+.recall .pill{margin-top:16px}
+.mgroup{margin-top:52px}
+.mgroup>.h3{margin-bottom:6px}
+.mrow{display:grid;grid-template-columns:minmax(170px,1.1fr) minmax(190px,230px) minmax(150px,1fr) 150px;gap:24px;align-items:center;padding:18px 0;border-bottom:1px solid var(--line-2)}
+.mname{font-weight:700;font-size:15.5px}
+.mdesc{font-size:13.5px;color:var(--ink-3);line-height:1.4;margin-top:2px}
+.bars{position:relative;display:flex;gap:6px;align-items:flex-end;height:46px}
+.bars i{flex:1;border-radius:5px 5px 2px 2px;background:var(--green);opacity:.78;min-height:3px}
+.bars i.soft{background:var(--sun);opacity:.95}
+.bars i.today{opacity:1;box-shadow:0 0 0 2px var(--card),0 0 0 3.5px var(--ink)}
+.bars .base{position:absolute;left:-4px;right:-4px;border-top:1.5px dashed rgba(29,36,32,.45);pointer-events:none}
+.dlabels{display:flex;gap:6px;font-size:10.5px;color:var(--ink-3);margin-top:5px}
+.dlabels span{flex:1;text-align:center}
+.mvals{font-size:14px;color:var(--ink-2);line-height:1.5}
+.mvals b{font-family:var(--serif);font-weight:500;font-size:1.1rem;color:var(--ink)}
+.mstat{justify-self:end}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:52px}
+.panel{background:var(--card);border-radius:30px;padding:26px 28px;box-shadow:var(--shadow)}
+.alerts{list-style:none;margin:14px 0 0;padding:0}
+.alerts li{display:grid;grid-template-columns:12px 1fr;gap:14px;padding:13px 0;border-top:1px solid var(--line-2);font-size:15px;color:var(--ink-2)}
+.alerts li .dot{margin-top:7px}
+.acts{list-style:none;margin:14px 0 0;padding:0;counter-reset:a}
+.acts li{display:grid;grid-template-columns:34px 1fr;gap:14px;padding:13px 0;border-top:1px solid var(--line-2)}
+.acts li::before{counter-increment:a;content:counter(a);width:30px;height:30px;border-radius:50%;background:var(--sun-soft);color:var(--sun-ink);display:grid;place-items:center;font-family:var(--serif);font-size:15px}
+.acts b{display:block;font-size:15.5px}
+.acts span{font-size:14px;color:var(--ink-2)}
+.legend{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:40px;padding:24px 0 0;border-top:1px solid var(--line)}
+.legend p{margin:10px 0 0;font-size:14px;color:var(--ink-2)}
+.nodx{margin-top:30px;display:flex;gap:14px;align-items:flex-start;font-size:14px;color:var(--ink-2);max-width:74ch}
+.nodx .ic{color:var(--green);margin-top:2px}
+.nodx p{margin:0}
+
+
+/* ---------- Language switch ---------- */
+.lang{display:inline-flex;align-items:center;background:var(--paper-deep);border-radius:999px;padding:3px;gap:2px;flex:none}
+.lang button{border:0;background:transparent;border-radius:999px;padding:7px 13px;font-weight:700;font-size:13.5px;color:var(--ink-2);cursor:pointer;line-height:1.2}
+.lang button[lang="bn"]{font-size:14.5px;padding:6px 13px 8px}
+.lang button.on{background:var(--ink);color:var(--paper)}
+.lang-ic{display:grid;place-items:center;width:30px;color:var(--green)}
+.lang-ic .ic{width:18px;height:18px}
+
+/* ---------- Bangla mode: Bengali script needs more line-height and no negative tracking ---------- */
+html[lang="bn"] body{line-height:1.72}
+html[lang="bn"] .display{letter-spacing:0;line-height:1.24;font-size:clamp(2.3rem,4.7vw,4.3rem);font-weight:500}
+html[lang="bn"] .h2{letter-spacing:0;line-height:1.32;font-weight:500}
+html[lang="bn"] .h3,html[lang="bn"] .action-t,html[lang="bn"] .pt-name,html[lang="bn"] .m-title,html[lang="bn"] .lval,
+html[lang="bn"] .ring-name,html[lang="bn"] .wk-v,html[lang="bn"] .bl-v,html[lang="bn"] .state h3,html[lang="bn"] .cname{letter-spacing:0;line-height:1.36}
+html[lang="bn"] .quote,html[lang="bn"] .story .m-detail{font-style:normal;letter-spacing:0;line-height:1.5}
+html[lang="bn"] .action-t{font-size:clamp(1.8rem,3vw,2.4rem)}
+html[lang="bn"] .lede{line-height:1.8}
+html[lang="bn"] .btn{white-space:normal;text-align:center}
+
+/* ---------- Toast ---------- */
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,16px);background:var(--ink);color:var(--paper);padding:12px 14px 12px 18px;border-radius:16px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .22s,transform .22s;z-index:100;display:flex;gap:14px;align-items:center;max-width:calc(100% - 32px);box-shadow:0 20px 40px -18px rgba(0,0,0,.5)}
+.toast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast button{background:var(--sun);color:var(--ink);border:0;border-radius:10px;padding:6px 12px;font-weight:800;cursor:pointer}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1040px){
+  .hero{grid-template-columns:1fr;gap:10px}
+  .hero-art{height:560px;max-width:560px;width:100%;margin:0 auto}
+  .today-grid{grid-template-columns:1fr}
+  .action{margin-top:0}
+  .call-grid{grid-template-columns:1fr}
+  .call-top{grid-template-columns:1fr}
+  .pt-grid{grid-template-columns:1fr;gap:34px}
+  .portrait{position:static}
+  .ins-top{grid-template-columns:1fr}
+  .mrow{grid-template-columns:1fr auto;gap:12px 20px}
+  .mrow .bars-wrap{grid-column:1/-1;order:3}
+  .mrow .mvals{order:4;grid-column:1/-1}
+  .two{grid-template-columns:1fr}
+  .week{grid-template-columns:repeat(3,1fr)}
+  .wk:nth-child(4){box-shadow:none}
+}
+@media (max-width:820px){
+  .tabs,.who{display:none}
+  .top-in{padding:10px 16px;gap:12px}
+  .lang{margin-left:auto}
+  .lang-ic{display:none}
+  .bnav{display:flex}
+  main.wrap{padding-bottom:40px}
+  .foot{padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))}
+  .toast{bottom:calc(86px + env(safe-area-inset-bottom,0px))}
+  .flow{grid-template-columns:1fr;gap:26px}
+  .flow::before{top:46px;bottom:40px;left:23px;right:auto;border-top:0;border-left:1.5px dashed rgba(47,107,95,.4)}
+  .fstep{display:grid;grid-template-columns:46px 1fr;gap:0 18px}
+  .fstep h3{margin:10px 0 6px}
+  .fstep>div{grid-column:2}
+  .fnum{grid-row:1/3}
+  .remember-home{grid-template-columns:1fr;padding:32px 28px}
+  .remember{grid-template-columns:1fr;padding:30px 26px;gap:18px}
+  .legend{grid-template-columns:1fr}
+  .baseline{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:560px){
+  .wrap{padding-left:18px;padding-right:18px}
+  .hero-art{height:545px}
+  .ring-card{width:268px;left:50%;top:41%}
+  .note-card{width:220px;bottom:0}
+  .hero-sun{width:110px;height:110px}
+  .ledger{padding:4px 18px}
+  .lrow{grid-template-columns:40px 1fr 12px;gap:12px}
+  .lic{width:40px;height:40px;border-radius:13px}
+  .week{grid-template-columns:repeat(2,1fr)}
+  .wk{box-shadow:none!important}
+  .phone{width:100%;max-width:352px;height:680px;border-radius:48px}
+  .screen{border-radius:37px}
+  .stages{grid-template-columns:repeat(2,1fr);gap:18px 0}
+  .stg:nth-child(2)::before{display:none}
+  .pipe{padding:24px 20px}
+  .feed li{grid-template-columns:96px 1fr 8px;gap:10px}
+  .row2,.addpanel .row2{grid-template-columns:1fr}
+  .baseline{grid-template-columns:1fr}
+  .mgrid{columns:1}
+  .panel{padding:22px 20px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <button class="brand" data-go="home" aria-label="Apon">
+      <svg viewBox="0 0 40 40" width="36" height="36" aria-hidden="true"><path d="M19 5c8.5 0 15 5.8 15 14.2S27.8 35 19.6 35 5 29.4 5 20.6 10.5 5 19 5z" fill="#2F6B5F"/><circle cx="29" cy="11" r="6" fill="#E39B5A"/><path d="M13 22c2 3 4.3 4.5 7 4.5s5-1.5 7-4.5" stroke="#F8F3EA" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>
+      <span class="brand-name">Apon</span><span class="brand-bn" lang="bn">আপন</span>
+    </button>
+    <nav class="tabs" aria-label="Main">
+      <button class="tab" data-go="home" data-en="Home" data-bn="হোম">Home</button>
+      <button class="tab" data-go="call" data-en="AI Call" data-bn="এআই কল">AI Call</button>
+      <button class="tab" data-go="patient" data-en="Patient" data-bn="প্রোফাইল">Patient</button>
+      <button class="tab" data-go="memory" data-en="Memory" data-bn="স্মৃতি">Memory</button>
+      <button class="tab" data-go="insights" data-en="Insights" data-bn="বিশ্লেষণ">Insights</button>
+    </nav>
+    <div class="lang" role="group" aria-label="Language / ভাষা">
+      <span class="lang-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.3 2.4 3.4 5.2 3.4 8.5s-1.1 6.1-3.4 8.5c-2.3-2.4-3.4-5.2-3.4-8.5S9.7 5.9 12 3.5z"/></svg></span>
+      <button data-action="lang" data-l="en" aria-pressed="true">English</button>
+      <button data-action="lang" data-l="bn" lang="bn" aria-pressed="false">বাংলা</button>
+    </div>
+    <div class="who"><span class="who-av" id="who-av">N</span><span><b id="who-name">Nila</b><br><span data-en="Family view" data-bn="পরিবারের জন্য">Family view</span></span></div>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <section class="view" id="view-home"></section>
+  <section class="view" id="view-call"></section>
+  <section class="view" id="view-patient"></section>
+  <section class="view" id="view-memory"></section>
+  <section class="view" id="view-insights"></section>
+</main>
+
+<footer class="foot wrap">
+  <div class="foot-in">
+    <p data-en="Apon is a pitch prototype. It does not diagnose dementia, Alzheimer's, Parkinson's or any other condition. It notices changes from one person's own usual pattern so families can check in sooner. All people and data here are fictional, and the AI is simulated." data-bn="আপন একটি পিচ প্রোটোটাইপ। এটি ডিমেনশিয়া, আলঝেইমার্স, পারকিনসন্স বা অন্য কোনো রোগ নির্ণয় করে না। এটি একজন মানুষের নিজের স্বাভাবিক ধরন থেকে পরিবর্তন লক্ষ করে, যাতে পরিবার আগেভাগে খোঁজ নিতে পারে। এখানকার সব মানুষ ও তথ্য কাল্পনিক, আর এআই সিমুলেটেড।">Apon is a pitch prototype. It does not diagnose dementia, Alzheimer's, Parkinson's or any other condition. It notices changes from one person's own usual pattern so families can check in sooner. All people and data here are fictional, and the AI is simulated.</p>
+    <button class="link" data-action="reset-demo" data-en="Reset demo data" data-bn="ডেমো ডেটা রিসেট করুন">Reset demo data</button>
+  </div>
+</footer>
+
+<nav class="bnav" aria-label="Main">
+  <button data-go="home"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/></svg><span data-en="Home" data-bn="হোম">Home</span></button>
+  <button data-go="call"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg><span data-en="AI Call" data-bn="এআই কল">AI Call</span></button>
+  <button data-go="patient"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/></svg><span data-en="Patient" data-bn="প্রোফাইল">Patient</span></button>
+  <button data-go="memory"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5c3-1.5 5.5-1.5 8 .5 2.5-2 5-2 8-.5v14c-3-1.5-5.5-1.5-8 .5-2.5-2-5-2-8-.5z"/><path d="M12 5.5v14"/></svg><span data-en="Memory" data-bn="স্মৃতি">Memory</span></button>
+  <button data-go="insights"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg><span data-en="Insights" data-bn="বিশ্লেষণ">Insights</span></button>
+</nav>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+(function(){
+'use strict';
+
+/* =========================================================
+   (a) Helpers and i18n
+   Every user-facing string is written as x('English','বাংলা').
+   ========================================================= */
+var KEY = 'apon-mvp-v2';          // demo data (profile, memories, history)
+var LANG_KEY = 'apon-lang';       // language choice, kept separately so "Reset demo data" keeps it
+var LANG = (function(){ try{ return window.localStorage.getItem(LANG_KEY)==='bn'?'bn':'en'; }catch(e){ return 'en'; } })();
+function x(en,bn){ return LANG==='bn'?bn:en; }
+var BN_DIG='০১২৩৪৫৬৭৮৯';
+function n(v){ var s=String(v); return LANG==='bn'? s.replace(/[0-9]/g,function(d){return BN_DIG.charAt(+d);}) : s; }
+/* Bangla possessive (-র / -ের) and object (-কে) endings */
+function poss(s){ s=String(s); if(/[\u0980-\u09FF]$/.test(s)) return /[\u0985-\u0994\u09BE-\u09CC]$/.test(s)? s+'র' : s+'ের'; return s+'-এর'; }
+function obj(s){ s=String(s); return /[\u0980-\u09FF]$/.test(s)? s+'কে' : s+'-কে'; }
+
+var TERMS = {
+  abba:{bn:'আব্বা',en:'Abba',he:'he',him:'him',his:'his',rel:'father',relBn:'বাবা'},
+  amma:{bn:'আম্মা',en:'Amma',he:'she',him:'her',his:'her',rel:'mother',relBn:'মা'},
+  nana:{bn:'নানা',en:'Nana',he:'he',him:'him',his:'his',rel:'grandfather',relBn:'মায়ের বাবা'},
+  nanu:{bn:'নানু',en:'Nanu',he:'she',him:'her',his:'her',rel:'grandmother',relBn:'মায়ের মা'},
+  dada:{bn:'দাদা',en:'Dada',he:'he',him:'him',his:'his',rel:'grandfather',relBn:'বাবার বাবা'},
+  dadi:{bn:'দাদি',en:'Dadi',he:'she',him:'her',his:'her',rel:'grandmother',relBn:'বাবার মা'}
+};
+var BN_DAYS = ['রবিবার','সোমবার','মঙ্গলবার','বুধবার','বৃহস্পতিবার','শুক্রবার','শনিবার'];
+var BN_DAYS_SHORT = ['র','সো','ম','বু','বৃ','শু','শ'];
+var EN_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+var BN_MONTHS = ['জানুয়ারি','ফেব্রুয়ারি','মার্চ','এপ্রিল','মে','জুন','জুলাই','আগস্ট','সেপ্টেম্বর','অক্টোবর','নভেম্বর','ডিসেম্বর'];
+var SCEN = [['Good day','ভালো দিন'],['Quiet day','চুপচাপ দিন'],['Harder day','কঠিন দিন']];
+
+function $(s,r){return (r||document).querySelector(s);}
+function $$(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function cap(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s;}
+function avg(a){return a.length?a.reduce(function(p,q){return p+q;},0)/a.length:0;}
+function listJoin(a){ if(a.length<2) return a.join(''); return a.slice(0,-1).join(', ')+x(' and ',' ও ')+a[a.length-1]; }
+function pad(v){return String(v).padStart(2,'0');}
+function fmt12(hhmm){
+  var p=String(hhmm||'10:00').split(':'), h=Number(p[0])||0, m=Number(p[1])||0, hm=((h+11)%12+1)+':'+pad(m);
+  if(LANG==='bn'){ var part=h<5?'রাত':h<12?'সকাল':h<15?'দুপুর':h<18?'বিকাল':h<20?'সন্ধ্যা':'রাত'; return part+' '+n(hm); }
+  return hm+' '+(h>=12?'PM':'AM');
+}
+function nowHHMM(){ var d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+function clockPlain(){ var d=new Date(); return n(((d.getHours()+11)%12+1)+':'+pad(d.getMinutes())); }
+function fmtClock(s){ return n(pad(Math.floor(s/60))+':'+pad(s%60)); }
+function fmtDur(s){ var m=Math.floor(s/60); return x(m+' min '+(s%60)+' sec', n(m)+' মিনিট '+n(s%60)+' সেকেন্ড'); }
+function todayLong(){ var d=new Date(); return x(EN_DAYS[d.getDay()]+', '+d.getDate()+' '+MONTHS[d.getMonth()], BN_DAYS[d.getDay()]+', '+n(d.getDate())+' '+BN_MONTHS[d.getMonth()]); }
+function dayLabels(){ var out=[],now=new Date(); for(var i=6;i>=0;i--){ var d=new Date(now); d.setDate(now.getDate()-i); out.push(i===0?x('Today','আজ'):x(EN_DAYS[d.getDay()],BN_DAYS[d.getDay()])); } return out; }
+function shortDays(){ var out=[],now=new Date(); for(var i=6;i>=0;i--){ var d=new Date(now); d.setDate(now.getDate()-i); out.push(x(EN_DAYS[d.getDay()].slice(0,2),BN_DAYS_SHORT[d.getDay()])); } return out; }
+
+var IC = {
+  home:'<path d="M3.5 11 12 4l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/><path d="M10 20v-5h4v5"/>',
+  phone:'<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/>',
+  book:'<path d="M4 5c3-1.5 5.5-1.5 8 .5 2.5-2 5-2 8-.5v14c-3-1.5-5.5-1.5-8 .5-2.5-2-5-2-8-.5z"/><path d="M12 5.5v14"/>',
+  trend:'<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  heart:'<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20z"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
+  moon:'<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/>',
+  cup:'<path d="M4 9h12v4.5A5.5 5.5 0 0 1 10.5 19h-1A5.5 5.5 0 0 1 4 13.5z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3.5c-.8 1 .8 2-.1 3M12 3.5c-.8 1 .8 2-.1 3"/>',
+  users:'<circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20c0-3.6 2.9-5.6 6.5-5.6s6.5 2 6.5 5.6"/><path d="M16 5.2a3.4 3.4 0 0 1 0 6.6M18 14.8c2.1.6 3.5 2.3 3.5 5.2"/>',
+  spark:'<path d="M12 3.5l1.9 5.1 5.1 1.9-5.1 1.9L12 17.5l-1.9-5.1L5 10.5l5.1-1.9z"/><path d="M19 16v4M17 18h4"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  x:'<path d="M6 6l12 12M18 6 6 18"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  leaf:'<path d="M5 19C5 10 10.5 5 20 4.5 19.5 14 14 19 5 19z"/><path d="M5 19c3.5-4.5 6.5-7 10-9"/>',
+  music:'<path d="M9 17.5V6l10-2v11.5"/><circle cx="6.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/>',
+  ball:'<circle cx="12" cy="12" r="8.5"/><path d="M8 4.8c1.8 2 2.8 4.5 2.8 7.2S9.8 17.2 8 19.2M16 4.8c-1.8 2-2.8 4.5-2.8 7.2s1 5.2 2.8 7.2"/>',
+  pin:'<path d="M7 3.5h10v17l-5-3.5-5 3.5z"/>',
+  trash:'<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>',
+  shield:'<path d="M12 3 19.5 6v5.5c0 4.7-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.8-7.5-9.5V6z"/><path d="M9 12l2 2 4-4"/>',
+  refresh:'<path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/>',
+  map:'<path d="M12 21s-6.5-5.8-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 15.2 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.3"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  walk:'<circle cx="13" cy="4.5" r="1.8"/><path d="M10 21l2-6-2.5-2.5 1.5-5 3 3 3 1"/><path d="M9.5 12.5 7 11l2-4"/>'
+};
+function icon(k,cls){ return '<svg class="ic '+(cls||'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(IC[k]||'')+'</svg>'; }
+function mark(size){ return '<svg viewBox="0 0 40 40" width="'+size+'" height="'+size+'" aria-hidden="true"><path d="M19 5c8.5 0 15 5.8 15 14.2S27.8 35 19.6 35 5 29.4 5 20.6 10.5 5 19 5z" fill="#2F6B5F"/><circle cx="29" cy="11" r="6" fill="#E39B5A"/><path d="M13 22c2 3 4.3 4.5 7 4.5s5-1.5 7-4.5" stroke="#F8F3EA" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>'; }
+
+/* =========================================================
+   (b) Seed data (fictional). Bangla versions live in *Bn fields.
+   ========================================================= */
+function seed(){
+  return {
+    v:2,
+    profile:{
+      name:'Abdul Rahman', nameBn:'আবদুর রহমান', age:72, term:'abba',
+      city:'Rajshahi', cityBn:'রাজশাহী',
+      living:'Lives alone since his wife Rokeya passed away in 2021. His neighbour Karim bhai looks in most afternoons.',
+      livingBn:'২০২১ সালে স্ত্রী রোকেয়া মারা যাওয়ার পর থেকে একা থাকেন। প্রতিবেশী করিম ভাই প্রায় প্রতি বিকেলে খোঁজ নেন।',
+      caregiver:'Nila', caregiverBn:'নীলা',
+      caregiverRel:'Daughter, lives in Dhaka', caregiverRelBn:'মেয়ে, ঢাকায় থাকেন',
+      callTime:'10:00'
+    },
+    interests:[{en:'Gardening',bn:'বাগান করা'},{en:'Rabindra Sangeet',bn:'রবীন্দ্রসংগীত'},{en:'Cricket',bn:'ক্রিকেট'},{en:'Morning walks',bn:'সকালের হাঁটা'}],
+    memories:[
+      {id:'m-mango',type:'story',title:'The mango tree',titleBn:'আম গাছ',year:'1985',
+        detail:'He planted the mango tree in the courtyard the year Nila was born, and he waters it every morning after Fajr.',
+        detailBn:'নীলার জন্মের বছর তিনি উঠানে আম গাছটি লাগিয়েছিলেন, আর প্রতিদিন ফজরের পর গাছে পানি দেন।',
+        starterBn:'গতকাল আপনি আপনার আম গাছের কথা বলছিলেন। গাছটা এখন কেমন আছে?',
+        starterEn:'Yesterday you were telling me about your mango tree. How is it doing now?',
+        replies:'mango', by:'Heard on a call yesterday', byBn:'গতকালের কলে শোনা'},
+      {id:'m-nila',type:'family',title:'Nila',titleBn:'নীলা',role:'Daughter',roleBn:'মেয়ে',
+        detail:'Lives in Dhaka and works at a bank. Calls on Fridays. He still calls her "Nilu".',
+        detailBn:'ঢাকায় থাকেন, একটি ব্যাংকে কাজ করেন। শুক্রবারে ফোন করেন। তিনি এখনো মেয়েকে "নীলু" বলে ডাকেন।',
+        starterBn:'নীলার অফিস কেমন চলছে, কিছু বলেছে?', starterEn:'Has Nila told you how work is going?', by:'Added by Nila', byBn:'নীলা যোগ করেছেন'},
+      {id:'m-rafi',type:'family',title:'Rafi',titleBn:'রাফি',role:'Grandson',roleBn:'নাতি',
+        detail:'Nila\u2019s son, 15. Has school exams this month. Watches cricket with his Nana whenever he visits.',
+        detailBn:'নীলার ছেলে, বয়স ১৫। এ মাসে স্কুলের পরীক্ষা। বেড়াতে এলেই নানার সাথে ক্রিকেট দেখে।',
+        starterBn:'রাফির পরীক্ষা কেমন হচ্ছে, খবর পেয়েছেন?', starterEn:'Have you heard how Rafi\u2019s exams are going?', by:'Added by Nila', byBn:'নীলা যোগ করেছেন'},
+      {id:'m-karim',type:'family',title:'Karim bhai',titleBn:'করিম ভাই',role:'Neighbour',roleBn:'প্রতিবেশী',
+        detail:'Lives next door. Drops by most afternoons for tea and the newspaper.',
+        detailBn:'পাশের বাসায় থাকেন। প্রায় প্রতি বিকেলে চা আর খবরের কাগজ নিয়ে আসেন।', by:'Heard on a call', byBn:'কলে শোনা'},
+      {id:'m-rokeya',type:'family',title:'Rokeya Begum',titleBn:'রোকেয়া বেগম',role:'Late wife',roleBn:'প্রয়াত স্ত্রী',gentle:true,
+        detail:'Married in 1978. She loved hearing him sing in the evenings.',
+        detailBn:'বিয়ে হয়েছিল ১৯৭৮ সালে। সন্ধ্যায় তাঁর গান শুনতে খুব ভালোবাসতেন।', by:'Added by Nila', byBn:'নীলা যোগ করেছেন'},
+      {id:'m-school',type:'story',title:'Thirty-four years of teaching',titleBn:'চৌত্রিশ বছরের শিক্ষকতা',
+        detail:'Taught mathematics at a high school in Rajshahi. Former students still visit him on Eid.',
+        detailBn:'রাজশাহীর একটি হাই স্কুলে গণিত পড়াতেন। পুরোনো ছাত্ররা এখনো ঈদে দেখা করতে আসে।',
+        starterBn:'আপনার স্কুলের দিনের একটা গল্প বলবেন?', starterEn:'Would you tell me a story from your school days?', by:'Added by Nila', byBn:'নীলা যোগ করেছেন'},
+      {id:'m-garden',type:'hobby',title:'Gardening',titleBn:'বাগান করা',like:'gardening',likeBn:'বাগান করতে',
+        detail:'Tomatoes, chillies and marigolds on the roof, and the mango tree below. Happiest with soil on his hands.',
+        detailBn:'ছাদে টমেটো, মরিচ আর গাঁদা ফুল, আর নিচে আম গাছ। মাটিতে হাত দিলেই সবচেয়ে খুশি।',
+        starterBn:'ছাদের বাগানে এবার কী কী লাগিয়েছেন?', starterEn:'What have you planted on the roof this season?', by:'Added by Nila', byBn:'নীলা যোগ করেছেন'},
+      {id:'m-songs',type:'hobby',title:'Rabindra Sangeet',titleBn:'রবীন্দ্রসংগীত',like:'Rabindra Sangeet',likeBn:'রবীন্দ্রসংগীত গাইতে',
+        detail:'Sings in the evenings and knows many songs by heart.',
+        detailBn:'সন্ধ্যায় গান করেন, অনেক গান তাঁর মুখস্থ।',
+        starterBn:'আজ সন্ধ্যায় কোন গানটা গাইবেন ভাবছেন?', starterEn:'Which song are you thinking of singing this evening?', by:'Added by Nila', byBn:'নীলা যোগ করেছেন'},
+      {id:'m-cricket',type:'hobby',title:'Cricket',titleBn:'ক্রিকেট',like:'cricket',likeBn:'ক্রিকেট দেখতে',
+        detail:'Never misses a Bangladesh match. Keeps the scores in a notebook.',
+        detailBn:'বাংলাদেশের কোনো খেলা মিস করেন না। একটা খাতায় স্কোর লিখে রাখেন।',
+        starterBn:'বাংলাদেশের পরের খেলাটা দেখবেন তো?', starterEn:'Will you be watching Bangladesh\u2019s next match?', by:'Heard on a call', byBn:'কলে শোনা'},
+      {id:'m-walk',type:'routine',title:'Morning walk',titleBn:'সকালের হাঁটা',
+        detail:'Fajr at the mosque, then a slow walk along the Padma before tea.',
+        detailBn:'মসজিদে ফজরের নামাজ, তারপর চায়ের আগে পদ্মার পাড়ে ধীরে হাঁটা।',
+        starterBn:'আজ সকালে হাঁটতে গিয়েছিলেন?', starterEn:'Did you go for your walk this morning?', by:'Heard on a call', byBn:'কলে শোনা'}
+    ],
+    pinned:'m-mango',
+    done:false,
+    history:[
+      {mood:4,sleep:3,breakfast:1,social:2,memory:5,orient:1,attention:2,language:2,duration:7.5},
+      {mood:4,sleep:3,breakfast:1,social:1,memory:4,orient:1,attention:2,language:2,duration:7.8},
+      {mood:3,sleep:2,breakfast:1,social:1,memory:5,orient:1,attention:2,language:1,duration:6.9},
+      {mood:3,sleep:2,breakfast:1,social:0,memory:4,orient:1,attention:2,language:2,duration:7.0},
+      {mood:3,sleep:2,breakfast:1,social:0,memory:4,orient:1,attention:1,language:2,duration:6.8},
+      {mood:3,sleep:2,breakfast:1,social:1,memory:4,orient:1,attention:2,language:2,duration:7.2},
+      {mood:4,sleep:2,breakfast:0,social:0,memory:4,orient:1,attention:2,language:2,duration:7.0,
+        time:'10:02',lonely:false,wantsCall:null,memUsed:'The mango tree',
+        highlights:[
+          {en:'Chatted about his mango tree and Rafi\u2019s exams.',bn:'আম গাছ আর রাফির পরীক্ষা নিয়ে গল্প করেছেন।'},
+          {en:'Remembered all three words in the memory game.',bn:'স্মৃতির খেলায় তিনটি শব্দই মনে রেখেছেন।'},
+          {en:'Said nobody had visited or called yet.',bn:'বলেছেন এখনো কেউ আসেনি বা ফোন করেনি।'}]}
+    ]
+  };
+}
+
+/* =========================================================
+   Storage (localStorage, with in-memory fallback if blocked)
+   ========================================================= */
+function load(){
+  try{
+    var raw = window.localStorage.getItem(KEY);
+    if(raw){ var d = JSON.parse(raw); if(d && d.v===2 && d.profile && d.history && d.history.length===7) return d; }
+  }catch(e){}
+  return seed();
+}
+function save(){ try{ window.localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+var S = load();
+
+/* Profile/memory field in the current language, falling back to English */
+function pf(k){ var p=S.profile; return (LANG==='bn' && p[k+'Bn']) ? p[k+'Bn'] : p[k]; }
+function mf(m,k){ return (LANG==='bn' && m[k+'Bn']) ? m[k+'Bn'] : m[k]; }
+function tx(v){ if(v==null) return ''; if(typeof v==='string') return v; return (LANG==='bn' && v.bn) ? v.bn : v.en; }
+
+function T(){
+  var t = TERMS[S.profile.term] || TERMS.abba;
+  return {bn:t.bn,en:t.en,a:x(t.en,t.bn),he:t.he,him:t.him,his:t.his,rel:t.rel,relBn:t.relBn,He:cap(t.he),His:cap(t.his),Him:cap(t.him)};
+}
+function cg(){ return pf('caregiver'); }
+function todayRec(){ return S.history[S.history.length-1]; }
+function pinnedMem(){ var m = S.memories.filter(function(q){return q.id===S.pinned;})[0]; return (m && !m.gentle)?m:null; }
+
+/* =========================================================
+   (c) Signals, baseline and status logic
+   Baseline = this person's own usual pattern (seeded as if learned from their first 14 calls).
+   Thresholds are demo values, not clinically validated.
+   ========================================================= */
+function f1(v){ return n(v.toFixed(1)); }
+var METRICS = [
+  {k:'mood',label:'Mood',labelBn:'মন',group:'well',base:4.0,max:5,ok:'Stable',okBn:'স্থির',down:true,thr:[-.10,-.25],
+    get:function(r){return r.mood;}, fmt:function(v){return f1(v)+' / '+n(5);},
+    day:function(v){return v>=4?x('Feeling good','ভালো লাগছে'):v>=3?x('A little low','একটু মন খারাপ'):x('Low','মন খারাপ');},
+    desc:function(t){return x('How '+t.he+' says '+t.he+' is feeling','তিনি নিজে কেমন অনুভব করছেন বলে জানান');}},
+  {k:'social',label:'Social',labelBn:'সামাজিক যোগাযোগ',group:'well',base:1.4,max:2,ok:'Stable',okBn:'স্থির',down:true,thr:[-.20,-.45],
+    get:function(r){return r.social;}, fmt:function(v){return x(v.toFixed(1)+' contacts a day', 'দিনে '+f1(v)+' জন');},
+    day:function(v){return v>=2?x('Two or more people','দুই বা বেশি জন'):v>=1?x('One person','একজন'):x('No one','কেউ না');},
+    desc:function(t){return x('People '+t.he+' talked with that day','সেদিন কতজনের সাথে কথা হয়েছে');}},
+  {k:'sleep',label:'Sleep',labelBn:'ঘুম',group:'well',base:2.6,max:3,ok:'Stable',okBn:'স্থির',down:true,thr:[-.10,-.25],
+    get:function(r){return r.sleep;}, fmt:function(v){return f1(v)+' / '+n(3);},
+    day:function(v){return v>=3?x('Slept well','ভালো ঘুম'):v>=2?x('Broken sleep','ভাঙা ঘুম'):x('Poor sleep','ঘুম হয়নি');},
+    desc:function(t){return x('How '+t.he+' says '+t.he+' slept','ঘুম কেমন হয়েছে বলে তিনি নিজে জানান');}},
+  {k:'routine',label:'Routine',labelBn:'রুটিন',group:'well',base:.93,max:1,ok:'Stable',okBn:'স্থির',thr:[-.15,-.35],
+    get:function(r){return r.breakfast;}, fmt:function(v){return x(Math.round(v*100)+'% of mornings', n(Math.round(v*100))+'% সকালে');},
+    day:function(v){return v>=1?x('Breakfast','নাস্তা'):v>0?x('Tea only','শুধু চা'):x('Not reported','জানা যায়নি');},
+    desc:function(){return x('Breakfast mentioned on the call','কলে সকালের নাস্তার উল্লেখ');}},
+  {k:'conversation',label:'Conversation',labelBn:'কথোপকথন',group:'well',base:7.2,max:10,ok:'Normal',okBn:'স্বাভাবিক',thr:[-.15,-.35],
+    get:function(r){return r.duration;}, fmt:function(v){return f1(v)+x(' min',' মিনিট');},
+    day:function(v){return f1(v)+x(' min',' মিনিট');},
+    desc:function(t){return x('Call length and how engaged '+t.he+' was','কলের দৈর্ঘ্য ও আলাপে আগ্রহ');}},
+  {k:'memory',label:'Memory',labelBn:'স্মৃতি',group:'cog',base:4.5,max:5,ok:'Stable',okBn:'স্থির',thr:[-.12,-.30],
+    get:function(r){return r.memory;}, fmt:function(v){return f1(v)+' / '+n(5);},
+    day:function(v){return n(Math.round(v*10)/10)+' / '+n(5);},
+    desc:function(){return x('Word recall and remembering familiar topics','শব্দ মনে রাখা ও পরিচিত বিষয় মনে পড়া');}},
+  {k:'orientation',label:'Orientation',labelBn:'সময়জ্ঞান',group:'cog',base:1,max:1,ok:'Normal',okBn:'স্বাভাবিক',thr:[-.15,-.35],
+    get:function(r){return r.orient;}, fmt:function(v){return x(Math.round(v*100)+'% of calls', n(Math.round(v*100))+'% কলে');},
+    day:function(v){return v?x('Knew the day','দিন জানতেন'):x('Unsure of the day','দিন নিশ্চিত ছিলেন না');},
+    desc:function(){return x('Knowing the day during the call','কলের সময় আজ কী বার তা জানা');}},
+  {k:'attention',label:'Attention',labelBn:'মনোযোগ',group:'cog',base:1.9,max:2,ok:'Stable',okBn:'স্থির',thr:[-.12,-.30],
+    get:function(r){return r.attention;}, fmt:function(v){return f1(v)+' / '+n(2);},
+    day:function(v){return v>=2?x('No repeats needed','আবার বলতে হয়নি'):v>=1?x('One repeat','একবার আবার বলতে হয়েছে'):x('Several repeats','কয়েকবার আবার বলতে হয়েছে');},
+    desc:function(){return x('Following the chat without needing repeats','আবার বলতে না হয়ে কথা বুঝতে পারা');}},
+  {k:'language',label:'Language',labelBn:'ভাষা',group:'cog',base:1.8,max:2,ok:'Normal',okBn:'স্বাভাবিক',thr:[-.12,-.30],
+    get:function(r){return r.language;}, fmt:function(v){return f1(v)+' / '+n(2);},
+    day:function(v){return v>=2?x('Easy flow','সহজ প্রবাহ'):v>=1?x('Some word-finding pauses','শব্দ খুঁজতে কিছু বিরতি'):x('Frequent pauses','ঘন ঘন বিরতি');},
+    desc:function(){return x('Finding words and speaking with ease','শব্দ খুঁজে পাওয়া ও সহজে কথা বলা');}}
+];
+function mlabel(m){ return x(m.label,m.labelBn); }
+function stLabel(m,st){ return st==='ok'?x(m.ok,m.okBn):st==='soft'?(m.down?x('Slight decline','সামান্য কমেছে'):x('Slight change','সামান্য পরিবর্তন')):x('Needs attention','মনোযোগ প্রয়োজন'); }
+function dailySt(m,v){ return ((v-m.base)/m.base)>=m.thr[0]?'ok':'soft'; }
+function weekly(){
+  return METRICS.map(function(m){
+    var vals = S.history.map(m.get), a = avg(vals), ch = (a-m.base)/m.base;
+    var st = ch>=m.thr[0]?'ok':ch>=m.thr[1]?'soft':'warn';
+    return {m:m,vals:vals,avg:a,ch:ch,st:st,label:stLabel(m,st)};
+  });
+}
+function wk(W,k){ return W.filter(function(q){return q.m.k===k;})[0]; }
+function cogChanged(r){
+  return METRICS.filter(function(m){return m.group==='cog' && dailySt(m,m.get(r))!=='ok';}).map(mlabel);
+}
+
+/* Plain-language summary written "by Apon" for the family */
+function headline(r){
+  var t=T(), A=t.a, first, c=[];
+  if(r.mood>=4) first=x(A+' sounded well this morning', A+' আজ সকালে ভালো ছিলেন');
+  else if(r.mood>=3) first=x(A+' sounded a little quiet this morning', A+' আজ সকালে একটু চুপচাপ ছিলেন');
+  else first=x(A+' sounded low this morning', A+' আজ সকালে মন খারাপ করে ছিলেন');
+  if(r.social===0) c.push(x(t.he+' hasn\u2019t spoken with anyone else today','আজ এখনো আর কারো সাথে কথা হয়নি'));
+  if(r.wantsCall===true) c.push(x(t.he+' said '+t.he+'\u2019d love to hear your voice','আপনার গলা শুনতে চেয়েছেন'));
+  if(r.lonely) c.push(x(t.he+' mentioned feeling a little lonely','একটু একা লাগার কথা বলেছেন'));
+  if(r.breakfast===0) c.push(x(t.he+' couldn\u2019t remember having breakfast','নাস্তা খেয়েছেন কি না মনে করতে পারেননি'));
+  if(r.sleep<=1) c.push(x(t.he+' barely slept','রাতে প্রায় ঘুমাননি'));
+  if(cogChanged(r).length) c.push(x('a few answers were different from '+t.his+' usual','কিছু উত্তর তাঁর স্বাভাবিকের চেয়ে আলাদা ছিল'));
+  if(!c.length) return x(first+', and the day looks like '+t.his+' usual.', first+', আর দিনটা তাঁর স্বাভাবিক দিনের মতোই।');
+  return x(first+', but '+c[0]+'.', first+', তবে '+c[0]+'।');
+}
+function suggestion(r){
+  var t=T(), A=t.a, Ak=obj(t.bn);
+  if(r.wantsCall===true) return {t:x('Call '+A+' tonight.','আজ রাতে '+Ak+' ফোন করুন।'), why:x(t.He+' said '+t.he+'\u2019d love to hear your voice. Apon told '+t.him+' it would pass the message on.','বলেছেন আপনার গলা শুনতে চান। আপন তাঁকে বলেছে খবরটা পৌঁছে দেবে।')};
+  if(r.wantsCall===false){
+    if(r.mood<=2) return {t:x('Call '+A+' today.','আজই '+Ak+' ফোন করুন।'), why:x(t.He+' sounded low this morning, and said you\u2019re busy and '+t.he+' didn\u2019t want to disturb you.','আজ সকালে তাঁর মন খারাপ ছিল, আর বলেছেন আপনি ব্যস্ত, তাই বিরক্ত করতে চাননি।')};
+    return {t:x('Call '+A+' tonight.','আজ রাতে '+Ak+' ফোন করুন।'), why:x(t.He+' felt a little lonely, but said you\u2019re busy and '+t.he+' didn\u2019t want to disturb you.','একটু একা লাগছিল, কিন্তু বলেছেন আপনি ব্যস্ত, তাই বিরক্ত করতে চাননি।')};
+  }
+  if(r.social===0 && r.mood<=2) return {t:x('Call '+A+' today.','আজই '+Ak+' ফোন করুন।'), why:x(t.He+' sounded low and hasn\u2019t spoken with anyone yet.','মন খারাপ ছিল, আর এখনো কারো সাথে কথা হয়নি।')};
+  if(r.social===0) return {t:x('Call '+A+' tonight.','আজ রাতে '+Ak+' ফোন করুন।'), why:x(t.He+' hasn\u2019t talked with anyone today. A few minutes of your voice would mean a lot.','আজ কারো সাথে কথা হয়নি। আপনার কয়েক মিনিটের কথা তাঁর কাছে অনেক কিছু।')};
+  if(r.mood<=2) return {t:x('Call '+A+' today.','আজই '+Ak+' ফোন করুন।'), why:x(t.He+' sounded low this morning. Hearing from you could lift the day.','আজ সকালে মন খারাপ ছিল। আপনার ফোন দিনটা ভালো করে দিতে পারে।')};
+  if(r.breakfast===0) return {t:x('Ask Karim bhai to look in.','করিম ভাইকে একবার খোঁজ নিতে বলুন।'), why:x(t.He+' didn\u2019t mention breakfast. A neighbour stopping by for tea can help.','নাস্তার কথা বলেননি। প্রতিবেশী চা খেতে এলে ভালো হয়।')};
+  return {t:x('Send '+A+' a photo of Rafi.',Ak+' রাফির একটা ছবি পাঠান।'), why:x('Today looks like '+t.his+' usual. Small moments keep the connection warm.','আজকের দিনটা তাঁর স্বাভাবিক দিনের মতো। ছোট ছোট মুহূর্ত সম্পর্ক উষ্ণ রাখে।')};
+}
+function todayRows(r){
+  var t=T(), c=esc(cg()), cog=cogChanged(r);
+  var mood = r.mood>=4?{v:x('Stable','স্থির'),s:x('Said '+t.he+'\u2019s feeling good.','বলেছেন ভালো লাগছে।'),st:'ok'}
+    : r.mood>=3?{v:x('A little low','একটু মন খারাপ'),s:r.lonely?x('Said '+t.he+' feels a little lonely.','বলেছেন একটু একা লাগছে।'):x('Said '+t.he+'\u2019s alright.','বলেছেন মোটামুটি আছেন।'),st:'soft'}
+    : {v:x('Low today','আজ মন ভালো নেই'),s:x('Said nothing feels right today.','বলেছেন আজ কিছুই ভালো লাগছে না।'),st:'soft'};
+  var soc = r.social>=2?{v:x('As usual','স্বাভাবিক'),s:x('Talked with '+c+' and Karim bhai.',c+' ও করিম ভাইয়ের সাথে কথা হয়েছে।'),st:'ok'}
+    : r.social>=1?{v:x('A little lower than usual','স্বাভাবিকের চেয়ে একটু কম'),s:x('Only a short chat with a neighbour.','শুধু প্রতিবেশীর সাথে অল্প কথা হয়েছে।'),st:'soft'}
+    : {v:x('Lower than usual','স্বাভাবিকের চেয়ে কম'),s:x('Said nobody had visited or called yet.','বলেছেন এখনো কেউ আসেনি বা ফোন করেনি।'),st:'soft'};
+  var rou = r.breakfast>=1?{v:x('Breakfast reported','নাস্তার কথা বলেছেন'),s:x('Mentioned what '+t.he+' ate this morning.','সকালে কী খেয়েছেন তা বলেছেন।'),st:'ok'}
+    : r.breakfast>0?{v:x('Light breakfast','হালকা নাস্তা'),s:x('Only had tea this morning.','সকালে শুধু চা খেয়েছেন।'),st:'soft'}
+    : {v:x('Breakfast not reported','নাস্তার কথা জানা যায়নি'),s:x('Couldn\u2019t remember eating. Apon suggested a light snack.','খেয়েছেন কি না মনে করতে পারেননি। আপন হালকা কিছু খেতে বলেছে।'),st:'soft'};
+  var slp = r.sleep>=3?{v:x('Slept well','ভালো ঘুম হয়েছে'),s:x('No trouble sleeping last night.','গত রাতে ঘুমে কোনো সমস্যা হয়নি।'),st:'ok'}
+    : r.sleep>=2?{v:x('Broken sleep','ঘুম ভেঙে ভেঙে হয়েছে'),s:x('Woke up a few times in the night.','রাতে কয়েকবার ঘুম ভেঙেছে।'),st:'soft'}
+    : {v:x('Poor sleep','ঘুম ভালো হয়নি'),s:x('Said '+t.he+' was awake most of the night.','বলেছেন প্রায় সারা রাত জেগে ছিলেন।'),st:'soft'};
+  var cogRow = cog.length
+    ? {v:x('Different from usual today','আজ স্বাভাবিকের চেয়ে আলাদা'),s:x(listJoin(cog)+(cog.length>1?' were':' was')+' below '+t.his+' usual. One day isn\u2019t a trend, so Apon will keep watching.', listJoin(cog)+' তাঁর স্বাভাবিকের চেয়ে কম ছিল। এক দিনে প্রবণতা বোঝা যায় না, তাই আপন নজর রাখবে।'),st:'soft'}
+    : {v:x('Within baseline','স্বাভাবিক সীমার মধ্যে'),s:x('Memory, orientation, attention and language matched '+t.his+' usual.','স্মৃতি, সময়জ্ঞান, মনোযোগ ও ভাষা তাঁর স্বাভাবিকের সাথে মিলেছে।'),st:'ok'};
+  return [
+    {ic:'phone',l:x('Today\u2019s call','আজকের কল'),v:x('Completed','সম্পন্ন')+' '+icon('check'),s:x('At '+fmt12(r.time)+', '+Math.round(r.duration)+' minutes, in Bangla.', fmt12(r.time)+'-এ, '+n(Math.round(r.duration))+' মিনিট, বাংলায়।'),st:'ok'},
+    {ic:'heart',l:x('Mood','মন'),v:mood.v,s:mood.s,st:mood.st},
+    {ic:'spark',l:x('Cognitive indicators','জ্ঞানীয় সূচক'),v:cogRow.v,s:cogRow.s,st:cogRow.st},
+    {ic:'users',l:x('Social interaction','সামাজিক যোগাযোগ'),v:soc.v,s:soc.s,st:soc.st},
+    {ic:'cup',l:x('Routine','দৈনন্দিন রুটিন'),v:rou.v,s:rou.s,st:rou.st,sun:true},
+    {ic:'moon',l:x('Sleep','ঘুম'),v:slp.v,s:slp.s,st:slp.st}
+  ];
+}
+function shortNote(r){
+  var t=T(), b=[];
+  b.push(r.mood>=4?x('Mood stable.','মন স্থির।'):x('Mood a little low.','মন একটু খারাপ।'));
+  b.push(cogChanged(r).length?x('Some answers differed from '+t.his+' usual.','কিছু উত্তর স্বাভাবিকের চেয়ে আলাদা।'):x('Memory within '+t.his+' usual.','স্মৃতি স্বাভাবিক সীমায়।'));
+  b.push(r.social>=2?x('Social contact as usual.','সামাজিক যোগাযোগ স্বাভাবিক।'):x('Fewer people than usual.','স্বাভাবিকের চেয়ে কম মানুষের সাথে কথা।'));
+  return b.join(' ');
+}
+function alertText(q){
+  var t=T(), H=S.history, A=t.a;
+  function c(f){return H.filter(f).length;}
+  switch(q.m.k){
+    case 'social': var z=c(function(r){return r.social===0;}); return z? x(A+' spoke with no one on '+z+' of the last 7 days.','গত '+n(7)+' দিনের '+n(z)+' দিন '+poss(t.bn)+' কারো সাথে কথা হয়নি।') : x(A+' has talked with fewer people than usual this week.','এই সপ্তাহে '+A+' স্বাভাবিকের চেয়ে কম মানুষের সাথে কথা বলেছেন।');
+    case 'mood': return x(t.His+' mood has been a little lower than usual this week: '+q.avg.toFixed(1)+' against '+t.his+' usual '+q.m.base.toFixed(1)+'.','এই সপ্তাহে '+poss(t.bn)+' মন স্বাভাবিকের চেয়ে একটু খারাপ ছিল: '+f1(q.avg)+', যেখানে স্বাভাবিক '+f1(q.m.base)+'।');
+    case 'sleep': var s=c(function(r){return r.sleep<=2;}); return x(t.He+' mentioned broken or poor sleep on '+s+' of 7 nights.',n(7)+' রাতের মধ্যে '+n(s)+' রাতে ভাঙা বা খারাপ ঘুমের কথা বলেছেন।');
+    case 'memory': return x('Recall has been below '+t.his+' usual: '+q.avg.toFixed(1)+' / 5 against '+q.m.base.toFixed(1)+' / 5.','স্মৃতি স্বাভাবিকের চেয়ে কম ছিল: '+f1(q.avg)+' / '+n(5)+', যেখানে স্বাভাবিক '+f1(q.m.base)+' / '+n(5)+'।');
+    case 'orientation': var o=c(function(r){return !r.orient;}); return x(t.He+' wasn\u2019t sure of the day on '+o+' of 7 calls.',n(7)+'টি কলের '+n(o)+'টিতে আজ কী বার, তা নিশ্চিত ছিলেন না।');
+    case 'attention': return x(t.He+' needed things repeated more often than usual.','স্বাভাবিকের চেয়ে বেশিবার কথা আবার বলতে হয়েছে।');
+    case 'language': return x('More pauses while looking for words than usual.','শব্দ খুঁজতে স্বাভাবিকের চেয়ে বেশি বিরতি নিয়েছেন।');
+    case 'routine': var b=c(function(r){return r.breakfast<1;}); return x('Breakfast was missing or light on '+b+' of 7 mornings.',n(7)+' সকালের '+n(b)+' সকালে নাস্তা হয়নি বা হালকা ছিল।');
+    case 'conversation': return x('Calls have been shorter than usual.','কলগুলো স্বাভাবিকের চেয়ে ছোট হচ্ছে।');
+  }
+  return '';
+}
+function weekActions(W){
+  var t=T(), A=t.a, Ak=obj(t.bn), out=[];
+  function st(k){return wk(W,k).st;}
+  if(st('social')!=='ok'||st('mood')!=='ok') out.push({t:x('Call '+A+' tonight','আজ রাতে '+Ak+' ফোন করুন'),d:x('A few minutes of your voice helps on quieter days.','চুপচাপ দিনগুলোতে আপনার কয়েক মিনিটের কথা অনেক সাহায্য করে।')});
+  if(st('social')!=='ok') out.push({t:x('Plan a video call with Rafi this weekend','এই সপ্তাহান্তে রাফির সাথে ভিডিও কলের ব্যবস্থা করুন'),d:x(t.He+' lights up when they talk about cricket.','ক্রিকেট নিয়ে কথা হলে তাঁর মুখে হাসি ফোটে।')});
+  if(st('social')==='warn') out.push({t:x('Ask Karim bhai to drop by','করিম ভাইকে একবার আসতে বলুন'),d:x('A neighbour\u2019s visit adds company on the days you can\u2019t call.','যেদিন আপনি ফোন করতে পারেন না, সেদিন প্রতিবেশীর উপস্থিতি সঙ্গ দেয়।')});
+  if(st('sleep')!=='ok') out.push({t:x('Ask about sleep when you talk','কথা বলার সময় ঘুমের খোঁজ নিন'),d:x('If poor sleep continues, mention it to '+t.his+' doctor.','ঘুমের সমস্যা চলতে থাকলে তাঁর ডাক্তারকে জানান।')});
+  var cogs = W.filter(function(q){return q.m.group==='cog' && q.st!=='ok';});
+  if(cogs.length) out.push({t:x('Keep an eye on '+listJoin(cogs.map(function(q){return q.m.label.toLowerCase();})), listJoin(cogs.map(function(q){return q.m.labelBn;}))+' নিয়ে নজর রাখুন'),d:x('If it stays below '+t.his+' usual for another week, consider a check-up with '+t.his+' doctor. Apon\u2019s notes can help that conversation.','আরও এক সপ্তাহ স্বাভাবিকের নিচে থাকলে ডাক্তারের কাছে একবার চেক-আপ করানোর কথা ভাবুন। আপনের নোট সেই আলোচনায় কাজে লাগতে পারে।')});
+  if(!out.length) out.push({t:x('Keep your usual Friday call','শুক্রবারের নিয়মিত কলটি চালিয়ে যান'),d:x('This week looks like '+t.his+' normal pattern.','এই সপ্তাহ তাঁর স্বাভাবিক ধরনের মতোই।')});
+  return out.slice(0,4);
+}
+
+/* =========================================================
+   (d) Screen renderers
+   ========================================================= */
+
+/* ---------- HOME (family view) ---------- */
+function renderHome(){
+  var t=T(), p=S.profile, r=todayRec(), sg=suggestion(r), W=weekly();
+  var rows = todayRows(r).map(function(q){
+    var lbl = q.st==='ok'?x('As usual','স্বাভাবিক'):x('Worth noticing','লক্ষ করার মতো');
+    return '<div class="lrow"><div class="lic'+(q.sun?' sun':'')+'">'+icon(q.ic)+'</div>'+
+      '<div><div class="llabel">'+q.l+'</div><div class="lval">'+q.v+'</div><div class="lsub">'+q.s+'</div></div>'+
+      '<span class="dot '+q.st+'" title="'+lbl+'"><span class="sr">'+lbl+'</span></span></div>';
+  }).join('');
+  var hl = (r.highlights&&r.highlights.length?r.highlights:[{en:'Had a warm chat with Apon.',bn:'আপনের সাথে আন্তরিক আলাপ হয়েছে।'}]).map(function(h){return '<li>'+esc(tx(h))+'</li>';}).join('');
+  var week = ['memory','mood','social','sleep','routine'].map(function(k){
+    var q=wk(W,k);
+    var bars = q.vals.map(function(v){ return '<i class="'+dailySt(q.m,v)+'" style="height:'+Math.max(8,Math.round(v/q.m.max*100))+'%"></i>'; }).join('');
+    return '<div class="wk"><div class="wk-l">'+mlabel(q.m)+'</div><div class="wk-v '+q.st+'">'+q.label+(q.st!=='ok'?' <span class="arr" aria-hidden="true">\u2193</span>':'')+'</div><div class="mini" aria-hidden="true">'+bars+'</div></div>';
+  }).join('');
+  var pin = pinnedMem();
+  var hobby = S.memories.filter(function(m){return m.type==='hobby';})[0];
+  var quote = remembersQuote(hobby,pin);
+  var head = '<p class="action-k">'+x('Suggested for you','আপনার জন্য পরামর্শ')+'</p><h3 class="action-t">'+esc(sg.t)+'</h3><p class="action-why">'+esc(sg.why)+'</p>';
+  var action = S.done
+    ? head+'<p class="action-done">'+icon('check')+x('Done. Thank you for checking in.','সম্পন্ন। খোঁজ নেওয়ার জন্য ধন্যবাদ।')+'</p><div class="action-btns"><button class="btn btn-light sm" data-action="undo-done">'+x('Undo','ফিরিয়ে নিন')+'</button></div>'
+    : head+'<div class="action-btns"><button class="btn btn-sun" data-action="done">'+icon('check')+x('Mark as done','সম্পন্ন করেছি')+'</button><button class="btn btn-light" data-action="remind">'+icon('clock')+x('Remind me at 8 PM','রাত ৮টায় মনে করিয়ে দিন')+'</button></div>';
+
+  $('#view-home').innerHTML =
+  '<div class="hero">'+
+    '<div class="hero-copy">'+
+      '<p class="kicker">'+x('For every priyojon (<span lang="bn">প্রিয়জন</span>) living with memory or cognitive changes','স্মৃতি বা চিন্তাশক্তিতে পরিবর্তন আসছে এমন প্রতিটি প্রিয়জনের জন্য')+'</p>'+
+      '<h1 class="display">'+x('Apon calls your parents when you cannot.','আপনি যখন পারেন না, আপন তখন আপনার বাবা-মাকে ফোন করে।')+'</h1>'+
+      '<p class="lede">'+x('Whether it\u2019s memory loss, dementia, Alzheimer\u2019s or Parkinson\u2019s, Apon gives your loved one a warm call of up to ten minutes every morning, in Bangla, on the phone they already own. Nothing new for them to learn. For you, a detailed daily check-in on how they\u2019re really doing, so you can spot small changes and act before their condition quietly gets worse.',
+        'স্মৃতিশক্তি কমে যাওয়া, ডিমেনশিয়া, আলঝেইমার্স বা পারকিনসন্স, যা-ই হোক না কেন, আপন প্রতিদিন সকালে আপনার প্রিয়জনকে তাঁর নিজের ফোনেই বাংলায় দশ মিনিট পর্যন্ত একটি আন্তরিক কল করে। তাঁকে নতুন কিছু শিখতে হয় না। আর আপনার জন্য থাকে প্রতিদিনের বিস্তারিত খোঁজখবর: তিনি আসলে কেমন আছেন, যাতে ছোট ছোট পরিবর্তন চোখে পড়ে এবং অবস্থা নিঃশব্দে খারাপ হওয়ার আগেই আপনি ব্যবস্থা নিতে পারেন।')+'</p>'+
+      '<div class="cta-row"><button class="btn btn-primary" data-action="hero-call">'+icon('phone')+x('Hear this morning\u2019s call','আজ সকালের কলটি শুনুন')+'</button><button class="btn btn-ghost" data-action="to-today">'+x('Read today\u2019s report','আজকের রিপোর্ট পড়ুন')+'</button></div>'+
+    '</div>'+
+    '<div class="hero-art" aria-label="'+x('Preview of an incoming Apon call','আপনের একটি ইনকামিং কলের নমুনা')+'">'+
+      '<div class="hero-blob"></div><div class="hero-sun"></div>'+
+      '<div class="ring-card">'+
+        '<p class="ring-k">'+x('Incoming call, ','ইনকামিং কল, ')+fmt12(p.callTime)+'</p>'+
+        '<div class="ring-av">'+mark(56)+'</div>'+
+        '<div class="ring-name">'+x('Apon','আপন')+'</div><div class="ring-bn" lang="bn">'+x('আপন','Apon')+'</div>'+
+        '<p class="ring-msg">'+x('Good morning, ','শুভ সকাল, ')+esc(t.a)+' \u2764\uFE0F</p>'+
+        '<div class="ring-actions"><div><button class="round no" data-action="hero-decline" aria-label="'+x('Decline','কেটে দিন')+'">'+icon('phone')+'</button>'+x('Decline','কেটে দিন')+'</div><div><button class="round yes pulse" data-action="hero-answer" aria-label="'+x('Answer call','কল ধরুন')+'">'+icon('phone')+'</button>'+x('Answer','ধরুন')+'</div></div>'+
+      '</div>'+
+      '<div class="note-card"><b>'+icon('check')+x('Summary sent to '+esc(cg()), esc(obj(cg()))+' সারসংক্ষেপ পাঠানো হয়েছে')+'</b>'+esc(shortNote(r))+'</div>'+
+    '</div>'+
+  '</div>'+
+
+  '<div class="sec" id="today">'+
+    '<div class="sec-head"><div><p class="kicker">'+todayLong()+'</p><h2 class="h2">'+esc(headline(r))+'</h2></div>'+
+    '<p class="small muted" style="max-width:34ch;margin:0">'+x('Written by Apon from today\u2019s call with '+esc(pf('name'))+'. You get summaries, never recordings.', esc(pf('name'))+'-এর সাথে আজকের কলের ভিত্তিতে আপন লিখেছে। আপনি শুধু সারসংক্ষেপ পান, কখনো রেকর্ডিং নয়।')+'</p></div>'+
+    '<div class="today-grid">'+
+      '<div><div class="ledger">'+rows+'</div>'+
+      '<div class="convo"><h3 class="h3">'+x('From the conversation','কথোপকথন থেকে')+'</h3><ul>'+hl+'</ul></div></div>'+
+      '<aside class="action" aria-label="'+x('Suggested action','পরামর্শ')+'">'+action+'</aside>'+
+    '</div>'+
+  '</div>'+
+
+  '<div class="sec">'+
+    '<div class="sec-head"><h2 class="h2">'+x('This week, against '+t.his+' own usual','এই সপ্তাহ, তাঁর নিজের স্বাভাবিকের তুলনায়')+'</h2><button class="link" data-go="insights">'+x('Open insights','বিশ্লেষণ দেখুন')+'</button></div>'+
+    '<div class="week">'+week+'</div>'+
+  '</div>'+
+
+  '<div class="sec">'+
+    '<div class="sec-head"><h2 class="h2">'+x('How Apon works','আপন যেভাবে কাজ করে')+'</h2></div>'+
+    '<div class="flow">'+
+      '<div class="fstep"><div class="fnum">'+n(1)+'</div><div><h3 class="h3">'+x(esc(t.a)+' answers a phone call', esc(t.a)+' একটি সাধারণ ফোন কল ধরেন')+'</h3><p>'+x('No smartphone skills needed. Apon rings at '+fmt12(p.callTime)+', speaks Bangla, and sounds like someone who knows '+t.him+'.','স্মার্টফোন চালানোর দক্ষতা লাগে না। আপন '+fmt12(p.callTime)+'-এ ফোন করে, বাংলায় কথা বলে, যেন তাঁকে অনেক দিন ধরে চেনে।')+'</p></div></div>'+
+      '<div class="fstep"><div class="fnum">'+n(2)+'</div><div><h3 class="h3">'+x('Apon talks, remembers and notices','আপন কথা বলে, মনে রাখে, খেয়াল করে')+'</h3><p>'+x('A 5 to 10 minute chat about breakfast, the mango tree and Rafi\u2019s exams, with small memory moments woven in.','নাস্তা, আম গাছ আর রাফির পরীক্ষা নিয়ে ৫ থেকে ১০ মিনিটের গল্প, তার মাঝে ছোট ছোট স্মৃতির খেলা।')+'</p></div></div>'+
+      '<div class="fstep"><div class="fnum">'+n(3)+'</div><div><h3 class="h3">'+x('You get the picture, not the recording','আপনি পান পুরো চিত্র, রেকর্ডিং নয়')+'</h3><p>'+x('A short daily note and weekly trends, measured against '+t.his+' own usual pattern.','প্রতিদিনের ছোট নোট আর সাপ্তাহিক প্রবণতা, তাঁর নিজের স্বাভাবিক ধরনের সাথে তুলনা করে।')+'</p></div></div>'+
+    '</div>'+
+  '</div>'+
+
+  '<div class="sec">'+
+    '<div class="remember-home"><div><p class="quote">\u201C'+esc(quote)+'\u201D</p><p class="quote-by">'+x('What Apon keeps in mind for '+esc(t.a), esc(poss(t.bn))+' জন্য আপন যা মনে রাখে')+'</p></div><button class="btn btn-primary" data-go="memory">'+icon('book')+x('Open the memory library','স্মৃতির লাইব্রেরি খুলুন')+'</button></div>'+
+  '</div>';
+}
+function remembersQuote(hobby,pin){
+  var like = hobby ? x(hobby.like||hobby.title, hobby.likeBn||hobby.titleBn||hobby.title) : x('our morning chats','সকালের গল্প করতে');
+  if(pin && pin.replies==='mango') return x('You like '+like+'. You talked about your mango tree yesterday.','আপনি '+like+' ভালোবাসেন। গতকাল আপনি আপনার আম গাছের কথা বলেছিলেন।');
+  if(pin) return x('You like '+like+'. Tomorrow I\u2019d love to hear about '+pin.title+'.','আপনি '+like+' ভালোবাসেন। কাল '+mf(pin,'title')+' নিয়ে আপনার গল্প শুনতে চাই।');
+  return x('You like '+like+'. I always look forward to our morning chat.','আপনি '+like+' ভালোবাসেন। সকালের গল্পের জন্য আমি সবসময় অপেক্ষা করি।');
+}
+
+/* ---------- PATIENT ---------- */
+var editing=false, editErr='';
+function renderPatient(){
+  var t=T(), p=S.profile, name=pf('name');
+  var initials = p.name.trim().split(/\s+/).map(function(w){return w.charAt(0);}).slice(0,2).join('').toUpperCase();
+  var portrait;
+  if(editing){
+    var opts = Object.keys(TERMS).map(function(k){ var q=TERMS[k]; return '<option value="'+k+'"'+(k===p.term?' selected':'')+'>'+x(q.en+' ('+q.bn+'), '+q.rel, q.bn+' ('+q.en+'), '+q.relBn)+'</option>'; }).join('');
+    portrait =
+      '<h2 class="h3">'+x('Edit profile','প্রোফাইল সম্পাদনা')+'</h2>'+
+      '<p class="small muted" style="margin:6px 0 0">'+x('You are editing the English details. Switch to বাংলা to edit the Bangla ones.','আপনি বাংলা তথ্য সম্পাদনা করছেন। ইংরেজি তথ্য বদলাতে English-এ যান।')+'</p>'+
+      '<label class="field"><span>'+x('Full name','পুরো নাম')+'</span><input class="input" id="f-name" value="'+esc(pf('name'))+'" autocomplete="off"></label>'+
+      '<div class="row2"><label class="field"><span>'+x('Age','বয়স')+'</span><input class="input" id="f-age" type="number" min="45" max="110" value="'+esc(p.age)+'"></label>'+
+      '<label class="field"><span>'+x('Daily call time','প্রতিদিনের কলের সময়')+'</span><input class="input" id="f-time" type="time" value="'+esc(p.callTime)+'"></label></div>'+
+      '<label class="field"><span>'+x('Apon calls them','আপন তাঁকে যে নামে ডাকে')+'</span><select class="input" id="f-term">'+opts+'</select></label>'+
+      '<label class="field"><span>'+x('Lives in','কোথায় থাকেন')+'</span><input class="input" id="f-city" value="'+esc(pf('city'))+'"></label>'+
+      '<label class="field"><span>'+x('About their day-to-day life','তাঁর দৈনন্দিন জীবন')+'</span><textarea class="input" id="f-living">'+esc(pf('living'))+'</textarea></label>'+
+      (editErr?'<p class="err" role="alert">'+esc(editErr)+'</p>':'')+
+      '<div class="form-btns"><button class="btn btn-primary" data-action="save-profile">'+icon('check')+x('Save profile','প্রোফাইল সংরক্ষণ করুন')+'</button><button class="btn btn-ghost" data-action="cancel-edit">'+x('Cancel','বাতিল')+'</button></div>';
+  } else {
+    portrait =
+      '<div class="pt-av" aria-hidden="true">'+esc(initials)+'</div>'+
+      '<h2 class="pt-name">'+esc(name)+'</h2>'+
+      '<p class="muted" style="margin:0">'+x('Age '+esc(p.age)+', lives in '+esc(pf('city')),'বয়স '+n(esc(p.age))+', '+esc(pf('city')))+'</p>'+
+      '<ul class="facts">'+
+        '<li>'+icon('heart')+'<span>'+x('Apon calls '+t.him+' <b>'+esc(t.en)+'</b> (<span lang="bn">'+t.bn+'</span>)','আপন তাঁকে ডাকে <b>'+t.bn+'</b>')+'</span></li>'+
+        '<li>'+icon('phone')+'<span>'+x('Daily call at <b>'+fmt12(p.callTime)+'</b>, in Bangla','প্রতিদিন <b>'+fmt12(p.callTime)+'</b>-এ কল, বাংলায়')+'</span></li>'+
+        '<li>'+icon('user')+'<span>'+x('Family contact: ','পরিবারের যোগাযোগ: ')+'<b>'+esc(cg())+'</b>, '+esc(pf('caregiverRel'))+'</span></li>'+
+        '<li>'+icon('map')+'<span>'+esc(pf('city'))+x(', Bangladesh',', বাংলাদেশ')+'</span></li>'+
+      '</ul>'+
+      '<button class="btn btn-ghost sm" data-action="edit-profile">'+icon('edit')+x('Edit profile','প্রোফাইল সম্পাদনা করুন')+'</button>';
+  }
+  var chips = S.interests.map(function(q,i){ var lbl=tx(q); return '<span class="chip">'+esc(lbl)+'<button data-action="del-interest" data-i="'+i+'" aria-label="'+x('Remove ','সরান: ')+esc(lbl)+'">'+icon('x')+'</button></span>'; }).join('');
+  var base = METRICS.map(function(m){ return '<div class="bl"><div class="bl-l">'+mlabel(m)+'</div><div class="bl-v">'+m.fmt(m.base)+'</div><div class="bl-d">'+esc(m.desc(t))+'</div></div>'; }).join('');
+
+  $('#view-patient').innerHTML =
+  '<div class="pt-grid">'+
+    '<aside class="portrait">'+portrait+'</aside>'+
+    '<div>'+
+      '<div class="block"><p class="kicker">'+x('Patient profile','প্রিয়জনের প্রোফাইল')+'</p><h2 class="h2">'+x(esc(t.He)+' does not need an app. '+esc(t.He)+' just needs a call.','তাঁর কোনো অ্যাপের দরকার নেই। দরকার শুধু একটা ফোন কল।')+'</h2></div>'+
+      '<div class="block"><div class="block-h"><h3 class="h3">'+x('Day-to-day life','দৈনন্দিন জীবন')+'</h3></div><p>'+esc(pf('living'))+'</p></div>'+
+      '<div class="block"><div class="block-h"><h3 class="h3">'+x('Interests','আগ্রহ')+'</h3><span class="small muted">'+x('Apon uses these to keep calls familiar','কলগুলো পরিচিত রাখতে আপন এগুলো ব্যবহার করে')+'</span></div>'+
+        '<div class="chips">'+(chips||'<span class="muted small">'+x('No interests yet. Add one below.','এখনো কোনো আগ্রহ যোগ করা হয়নি। নিচে যোগ করুন।')+'</span>')+'</div>'+
+        '<div class="chip-add"><input class="input" id="interest-in" placeholder="'+x('Add an interest, e.g. Tea with friends','আগ্রহ যোগ করুন, যেমন: বন্ধুদের সাথে চা')+'" aria-label="'+x('New interest','নতুন আগ্রহ')+'"><button class="btn btn-primary sm" data-action="add-interest">'+icon('plus')+x('Add','যোগ করুন')+'</button></div>'+
+      '</div>'+
+      '<div class="block"><div class="block-h"><h3 class="h3">'+x('Personal baseline','ব্যক্তিগত বেসলাইন')+'</h3><span class="small muted">'+x('Learned from '+t.his+' first 14 calls','প্রথম ১৪টি কল থেকে শেখা')+'</span></div>'+
+        '<p style="margin-bottom:18px">'+x('This is '+esc(t.en)+'\u2019s own usual pattern. Every change Apon reports is measured against it, never against other people or population averages.','এটি '+esc(poss(t.bn))+' নিজের স্বাভাবিক ধরন। আপন যে পরিবর্তনই জানায়, তা এর সাথেই তুলনা করে মাপা হয়, অন্য মানুষ বা জনসংখ্যার গড়ের সাথে কখনো নয়।')+'</p>'+
+        '<div class="baseline">'+base+'</div>'+
+      '</div>'+
+      '<div class="block"><div class="consent">'+icon('shield')+'<div><h3 class="h3" style="font-size:1.1rem">'+x('Consent and privacy','সম্মতি ও গোপনীয়তা')+'</h3><p class="small" style="margin-top:6px">'+x(esc(name)+' agreed to daily calls and to '+esc(cg())+' seeing short summaries. Recordings are not shared with the family. Apon is not a medical device and does not diagnose.', esc(name)+' প্রতিদিনের কল এবং '+esc(poss(cg()))+' সংক্ষিপ্ত সারাংশ দেখার বিষয়ে সম্মতি দিয়েছেন। রেকর্ডিং পরিবারের সাথে শেয়ার করা হয় না। আপন কোনো মেডিকেল ডিভাইস নয় এবং রোগ নির্ণয় করে না।')+'</p></div></div></div>'+
+    '</div>'+
+  '</div>';
+}
+
+/* ---------- MEMORY LIBRARY ---------- */
+var mFilter='all', mForm=false, mErr='';
+var TYPE_LABEL={family:['Family','পরিবার'],story:['Story','গল্প'],hobby:['Hobby','শখ'],routine:['Routine','রুটিন']};
+function typeLabel(k){ var q=TYPE_LABEL[k]||TYPE_LABEL.story; return x(q[0],q[1]); }
+function hobbyIcon(m){ var s=(m.title||'').toLowerCase(); if(s.indexOf('song')>-1||s.indexOf('sangeet')>-1||s.indexOf('music')>-1) return 'music'; if(s.indexOf('cricket')>-1) return 'ball'; if(s.indexOf('walk')>-1) return 'walk'; return m.type==='hobby'?'leaf':m.type==='routine'?'sun':'book'; }
+function renderMemory(){
+  var t=T(), pin=pinnedMem();
+  var hobby = S.memories.filter(function(m){return m.type==='hobby';})[0];
+  var counts={all:S.memories.length,family:0,story:0,hobby:0,routine:0};
+  S.memories.forEach(function(m){counts[m.type]=(counts[m.type]||0)+1;});
+  var filters=[['all','All','সব'],['family','Family','পরিবার'],['story','Stories','গল্প'],['hobby','Hobbies','শখ'],['routine','Routines','রুটিন']].map(function(f){
+    return '<button class="fbtn'+(mFilter===f[0]?' on':'')+'" data-action="mfilter" data-f="'+f[0]+'" aria-pressed="'+(mFilter===f[0])+'">'+x(f[1],f[2])+'<span class="n">'+n(counts[f[0]])+'</span></button>';
+  }).join('');
+  var list = S.memories.filter(function(m){return mFilter==='all'||m.type===mFilter;});
+  var cards = list.map(function(m){
+    var isPin = S.pinned===m.id && !m.gentle, title=mf(m,'title');
+    var head = m.type==='family'
+      ? '<div class="m-top"><div><div class="m-type">'+esc(mf(m,'role')||typeLabel('family'))+'</div><h3 class="m-title">'+esc(title)+'</h3></div><div class="m-av" aria-hidden="true">'+esc(title.charAt(0))+'</div></div>'
+      : '<div class="m-top"><div><div class="m-type">'+typeLabel(m.type)+(m.year?', '+n(esc(m.year)):'')+'</div><h3 class="m-title">'+esc(title)+'</h3></div><div class="m-icon" aria-hidden="true">'+icon(hobbyIcon(m))+'</div></div>';
+    var starter = m.starterBn ? '<p class="m-starter"><span lang="bn">'+esc(m.starterBn)+'</span>'+(LANG==='bn'?'':'<br><span class="small">'+esc(m.starterEn||'')+'</span>')+'</p>'
+      : (m.starter? '<p class="m-starter">'+esc(m.starter)+'</p>' : '');
+    var gentle = m.gentle ? '<p class="m-gentle">'+x('Handled gently. Apon only talks about this when '+t.he+' brings it up.','সাবধানে রাখা হয়েছে। তিনি নিজে না তুললে আপন এ বিষয়ে কথা বলে না।')+'</p>' : '';
+    var pinBtn = m.gentle ? '<span class="m-by">'+esc(mf(m,'by')||'')+'</span>'
+      : '<button class="pinbtn" data-action="pin" data-id="'+esc(m.id)+'" aria-pressed="'+isPin+'">'+icon(isPin?'check':'pin')+(isPin?x('On the next call','পরের কলে থাকবে'):x('Use on next call','পরের কলে ব্যবহার করুন'))+'</button>';
+    return '<article class="mcard '+m.type+(isPin?' pinned':'')+'">'+(isPin?'<span class="flag">'+x('Next call topic','পরের কলের বিষয়')+'</span>':'')+head+
+      '<p class="m-detail">'+esc(mf(m,'detail'))+'</p>'+starter+gentle+
+      '<div class="mfoot">'+pinBtn+'<button class="delbtn" data-action="del-mem" data-id="'+esc(m.id)+'" aria-label="'+x('Remove ','সরান: ')+esc(title)+'">'+icon('trash')+'</button></div></article>';
+  }).join('');
+  var form = mForm ?
+    '<div class="addpanel" id="addpanel"><h3 class="h3">'+x('Add a memory','স্মৃতি যোগ করুন')+'</h3><p class="small muted" style="margin:6px 0 0">'+x('Anything that helps Apon feel familiar: a person, a story, a hobby or a daily habit.','যা কিছু আপনকে পরিচিত করে তোলে: একজন মানুষ, একটি গল্প, একটি শখ বা প্রতিদিনের অভ্যাস।')+'</p>'+
+      '<div class="row2"><label class="field"><span>'+x('Type','ধরন')+'</span><select class="input" id="m-type"><option value="family">'+x('Family or friend','পরিবার বা বন্ধু')+'</option><option value="story">'+x('Story','গল্প')+'</option><option value="hobby">'+x('Hobby','শখ')+'</option><option value="routine">'+x('Routine','রুটিন')+'</option></select></label>'+
+      '<label class="field"><span>'+x('Name or title','নাম বা শিরোনাম')+'</span><input class="input" id="m-title" placeholder="'+x('e.g. Eid at the village home','যেমন: গ্রামের বাড়িতে ঈদ')+'" autocomplete="off"></label></div>'+
+      '<div class="row2"><label class="field"><span>'+x('Relationship (for family or friends)','সম্পর্ক (পরিবার বা বন্ধুর ক্ষেত্রে)')+'</span><input class="input" id="m-role" placeholder="'+x('e.g. Younger brother','যেমন: ছোট ভাই')+'"></label>'+
+      '<label class="field"><span>'+x('Conversation starter (optional, any language)','কথা শুরুর প্রশ্ন (ঐচ্ছিক, যেকোনো ভাষায়)')+'</span><input class="input" id="m-starter" placeholder="ঈদের সময় গ্রামের বাড়ির কথা মনে পড়ে?"></label></div>'+
+      '<label class="field"><span>'+x('Details','বিস্তারিত')+'</span><textarea class="input" id="m-detail" placeholder="'+x('What should Apon know?','আপনের কী জানা দরকার?')+'"></textarea></label>'+
+      (mErr?'<p class="err" role="alert">'+esc(mErr)+'</p>':'')+
+      '<div class="form-btns"><button class="btn btn-primary" data-action="save-mem">'+icon('check')+x('Save memory','স্মৃতি সংরক্ষণ করুন')+'</button><button class="btn btn-ghost" data-action="close-mem">'+x('Cancel','বাতিল')+'</button></div></div>' : '';
+
+  $('#view-memory').innerHTML =
+    '<p class="kicker">'+x('Memory library','স্মৃতির লাইব্রেরি')+'</p>'+
+    '<h2 class="h2" style="max-width:20ch">'+x('What Apon remembers about '+esc(t.en), esc(t.bn)+' সম্পর্কে আপন যা মনে রাখে')+'</h2>'+
+    '<div class="remember"><div class="remember-mark">'+mark(52)+'</div><div><p class="quote">\u201C'+esc(remembersQuote(hobby,pin))+'\u201D</p><p class="quote-by">'+x('Apon brings these up naturally so calls feel familiar, not like a test. Pin one to use it on the next call.','আপন এগুলো স্বাভাবিকভাবে কথায় আনে, যাতে কল পরীক্ষার মতো না লেগে আপন লাগে। পরের কলে ব্যবহার করতে একটি পিন করুন।')+'</p></div></div>'+
+    '<div class="mtools"><div class="filters" role="group" aria-label="'+x('Filter memories','স্মৃতি বাছাই')+'">'+filters+'</div>'+
+    (mForm?'':'<button class="btn btn-primary" data-action="open-mem">'+icon('plus')+x('Add a memory','স্মৃতি যোগ করুন')+'</button>')+'</div>'+
+    form+
+    (cards?'<div class="mgrid">'+cards+'</div>':'<div class="m-empty"><p>'+x('No memories here yet. Add a person, story or habit so Apon can bring it up on calls.','এখানে এখনো কোনো স্মৃতি নেই। একজন মানুষ, গল্প বা অভ্যাস যোগ করুন, যাতে আপন কলে এ নিয়ে কথা বলতে পারে।')+'</p></div>');
+}
+
+/* ---------- INSIGHTS ---------- */
+function renderInsights(){
+  var t=T(), W=weekly(), labels=dayLabels(), sd=shortDays(), mem=wk(W,'memory');
+  function row(q){
+    var bars = q.vals.map(function(v,i){ return '<i class="'+dailySt(q.m,v)+(i===6?' today':'')+'" style="height:'+Math.max(6,Math.round(v/q.m.max*100))+'%" title="'+esc(labels[i])+': '+esc(q.m.day(v))+'"></i>'; }).join('');
+    var baseB = Math.round(q.m.base/q.m.max*100);
+    return '<div class="mrow"><div><div class="mname">'+mlabel(q.m)+'</div><div class="mdesc">'+esc(q.m.desc(t))+'</div></div>'+
+      '<div class="bars-wrap"><div class="bars" role="img" aria-label="'+x(q.m.label+' over the last 7 days','গত ৭ দিনে '+q.m.labelBn)+'">'+bars+'<span class="base" style="bottom:'+baseB+'%"></span></div><div class="dlabels">'+sd.map(function(l,i){return '<span'+(i===6?' style="color:var(--ink);font-weight:800"':'')+'>'+l+'</span>';}).join('')+'</div></div>'+
+      '<div class="mvals"><b>'+q.m.fmt(q.avg)+'</b>'+x(' this week',' এই সপ্তাহে')+'<br>'+x('Usual ','স্বাভাবিক ')+q.m.fmt(q.m.base)+'</div>'+
+      '<div class="mstat"><span class="pill '+q.st+'">'+q.label+'</span></div></div>';
+  }
+  var well = W.filter(function(q){return q.m.group==='well';}).map(row).join('');
+  var cog = W.filter(function(q){return q.m.group==='cog';}).map(row).join('');
+  var al = W.filter(function(q){return q.st!=='ok';});
+  var alerts = al.length ? al.sort(function(a,b){return (a.st==='warn'?0:1)-(b.st==='warn'?0:1);}).map(function(q){return '<li><span class="dot '+q.st+'"></span><span>'+esc(alertText(q))+'</span></li>';}).join('')
+    : '<li><span class="dot"></span><span>'+x('Nothing unusual this week. Everything is within '+t.his+' normal range.','এই সপ্তাহে অস্বাভাবিক কিছু নেই। সবকিছু তাঁর স্বাভাবিক সীমার মধ্যে।')+'</span></li>';
+  var acts = weekActions(W).map(function(a){return '<li><div><b>'+esc(a.t)+'</b><span>'+esc(a.d)+'</span></div></li>';}).join('');
+
+  $('#view-insights').innerHTML =
+  '<div class="ins-top">'+
+    '<div><p class="kicker">'+x('Insights for '+esc(cg()), esc(poss(cg()))+' জন্য বিশ্লেষণ')+'</p><h2 class="h2">'+x('This week with '+esc(t.en),'এই সপ্তাহে '+esc(t.bn))+'</h2>'+
+    '<p class="lede">'+x('Every signal is compared with '+t.his+' own baseline, the pattern Apon learned from '+t.his+' first 14 calls. Never with other people\u2019s averages. The bars show the last 7 calls, with today outlined. The dashed line is '+t.his+' usual.','প্রতিটি সংকেত তুলনা করা হয় '+esc(poss(t.bn))+' নিজের বেসলাইনের সাথে, অর্থাৎ প্রথম ১৪টি কল থেকে আপন তাঁর যে স্বাভাবিক ধরন শিখেছে। অন্যদের গড়ের সাথে কখনো নয়। বারগুলো শেষ ৭টি কল দেখায়, আজকেরটি আলাদা করে চিহ্নিত। ড্যাশ লাইনটি তাঁর স্বাভাবিক মাত্রা।')+'</p></div>'+
+    '<div class="recall"><p class="recall-k">'+x('Memory recall','স্মৃতিশক্তি')+'</p><div class="recall-n">'+f1(mem.avg)+'<span> / '+n(5)+'</span></div><p>'+x('This week, against a baseline of '+mem.m.base.toFixed(1)+' / 5. A mix of three-word recall and remembering topics from earlier calls.','এই সপ্তাহে, বেসলাইন '+f1(mem.m.base)+' / '+n(5)+'-এর তুলনায়। তিন শব্দ মনে রাখা এবং আগের কলের বিষয় মনে পড়ার সমন্বয়।')+'</p><span class="pill '+mem.st+'">'+mem.label+'</span></div>'+
+  '</div>'+
+  '<div class="mgroup"><h3 class="h3">'+x('Wellbeing','সুস্থতা')+'</h3>'+well+'</div>'+
+  '<div class="mgroup"><h3 class="h3">'+x('Cognitive indicators','জ্ঞানীয় সূচক')+'</h3>'+cog+'</div>'+
+  '<div class="two">'+
+    '<div class="panel"><h3 class="h3">'+x('Worth your attention','আপনার নজর দেওয়ার মতো')+'</h3><ul class="alerts">'+alerts+'</ul></div>'+
+    '<div class="panel"><h3 class="h3">'+x('Suggested next steps','পরবর্তী করণীয়')+'</h3><ol class="acts">'+acts+'</ol></div>'+
+  '</div>'+
+  '<div class="legend">'+
+    '<div><span class="pill">'+x('Stable or normal','স্থির বা স্বাভাবিক')+'</span><p>'+x('Within '+t.his+' usual range. Nothing to do.','তাঁর স্বাভাবিক সীমার মধ্যে। কিছু করার দরকার নেই।')+'</p></div>'+
+    '<div><span class="pill soft">'+x('Slight change','সামান্য পরিবর্তন')+'</span><p>'+x('A small shift from '+t.his+' usual. Worth noticing, and a good reason to call.','স্বাভাবিক থেকে সামান্য সরে যাওয়া। লক্ষ করার মতো, আর ফোন করার ভালো কারণ।')+'</p></div>'+
+    '<div><span class="pill warn">'+x('Needs attention','মনোযোগ প্রয়োজন')+'</span><p>'+x('A sustained change over several days. Check in with '+t.him+', and speak with '+t.his+' doctor if it continues.','কয়েক দিন ধরে টানা পরিবর্তন। তাঁর খোঁজ নিন, আর চলতে থাকলে ডাক্তারের সাথে কথা বলুন।')+'</p></div>'+
+  '</div>'+
+  '<div class="nodx">'+icon('shield')+'<p>'+x('Apon does not diagnose dementia, Alzheimer\u2019s or any other condition. It notices changes from '+esc(t.en)+'\u2019s own pattern so the family can check in sooner. Any health concern should go to a qualified doctor.','আপন ডিমেনশিয়া, আলঝেইমার্স বা অন্য কোনো রোগ নির্ণয় করে না। এটি '+esc(poss(t.bn))+' নিজের ধরন থেকে পরিবর্তন লক্ষ করে, যাতে পরিবার আগেভাগে খোঁজ নিতে পারে। যেকোনো স্বাস্থ্য-উদ্বেগের জন্য যোগ্য ডাক্তারের পরামর্শ নিন।')+'</p></div>';
+}
+
+/* =========================================================
+   (e) AI CALL: conversation script (simulated conversation engine)
+   Apon always speaks Bangla. The English line under each caption is
+   the translation shown only in English mode.
+   Each reply carries structured signals, like a real extraction layer would.
+   feed item: [category, English text, tone, Bangla text]
+   hl (highlight for family): [priority, English, Bangla]
+   ========================================================= */
+var CAT_BN={Conversation:'কথোপকথন',Routine:'রুটিন',Sleep:'ঘুম',Mood:'মন',Memory:'স্মৃতি',Attention:'মনোযোগ',Language:'ভাষা',Social:'সামাজিক',Orientation:'সময়জ্ঞান',Connection:'যোগাযোগ',Companion:'সঙ্গী',Call:'কল',Report:'রিপোর্ট'};
+var STAGE_BN={'Warm opening':'আন্তরিক শুরু','Daily routine':'দৈনন্দিন রুটিন','Emotional check':'মনের খোঁজ','Memory moment':'স্মৃতির খেলা','Familiar memories':'পরিচিত স্মৃতি','Social connection':'সামাজিক যোগাযোগ','Orientation':'সময়জ্ঞান','Family connection':'পরিবারের সাথে যোগ','Closing':'বিদায়'};
+function buildSteps(){
+  var t=T(), a=t.bn, A=t.en, c=S.profile.caregiver, cB=S.profile.caregiverBn||c;
+  var d=new Date().getDay(), dBn=BN_DAYS[d], pBn=BN_DAYS[(d+6)%7], dEn=EN_DAYS[d], pEn=EN_DAYS[(d+6)%7];
+  var mem=pinnedMem();
+  var steps=[
+    {stage:'Warm opening', bn:'আসসালামু আলাইকুম '+a+', আজ কেমন আছেন?', en:'Assalamu alaikum, '+A+'. How are you today?', opts:[
+      {bn:'ওয়ালাইকুম আসসালাম। আলহামদুলিল্লাহ, ভালো আছি।', en:'Wa alaikum assalam. Alhamdulillah, I am well.', sec:16, feed:[['Conversation','Answered warmly','ok','আন্তরিকভাবে উত্তর দিয়েছেন']]},
+      {bn:'এই তো, মোটামুটি আছি।', en:'I\u2019m getting by.', sec:11, feed:[['Conversation','Answered briefly','ok','সংক্ষেপে উত্তর দিয়েছেন']]},
+      {bn:'হ্যাঁ? কে বলছেন?', en:'Yes? Who is this?', sec:8, sig:{repeat:1}, feed:[['Attention','Needed a moment to recognise Apon','soft','আপনকে চিনতে একটু সময় লেগেছে']],
+        ack:{bn:'আমি আপন, '+a+'। রোজ সকালে আপনার সাথে একটু গল্প করি।', en:'It\u2019s Apon, '+A+'. I call every morning for a little chat.'}}
+    ]},
+    {stage:'Daily routine', bn:'সকালে কী খেয়েছেন?', en:'What did you have this morning?', opts:[
+      {bn:'রুটি আর ডিম, সাথে এক কাপ চা।', en:'Roti and egg, with a cup of tea.', sec:14, sig:{breakfast:1}, feed:[['Routine','Breakfast: roti, egg and tea','ok','নাস্তা: রুটি, ডিম ও চা']], hl:[7,'Had roti, egg and tea for breakfast.','নাস্তায় রুটি, ডিম আর চা খেয়েছেন।'], ack:{bn:'বাহ, খুব ভালো!', en:'Lovely!'}},
+      {bn:'শুধু এক কাপ চা খেয়েছি।', en:'Just a cup of tea.', sec:10, sig:{breakfast:.5}, feed:[['Routine','Breakfast: tea only','soft','নাস্তা: শুধু চা']], hl:[6,'Only had tea for breakfast.','নাস্তায় শুধু চা খেয়েছেন।'], ack:{bn:'একটু কিছু খেয়ে নিলে শরীরটা ভালো লাগবে।', en:'Eating a little something will help you feel better.'}},
+      {bn:'মনে নেই... মনে হয় খাইনি।', en:'I don\u2019t remember... I don\u2019t think I ate.', sec:8, sig:{breakfast:0}, feed:[['Routine','Breakfast not reported','soft','নাস্তার কথা জানা যায়নি']], hl:[5,'Couldn\u2019t remember having breakfast.','নাস্তা খেয়েছেন কি না মনে করতে পারেননি।'], ack:{bn:'আচ্ছা। একটা কলা আর একটু মুড়ি খেয়ে নেবেন, কেমন?', en:'Alright. Maybe have a banana and some muri?'}}
+    ]},
+    {stage:'Daily routine', bn:'রাতে ঘুম কেমন হয়েছে?', en:'How did you sleep last night?', opts:[
+      {bn:'আলহামদুলিল্লাহ, ভালো ঘুম হয়েছে।', en:'Alhamdulillah, I slept well.', sec:12, sig:{sleep:3}, feed:[['Sleep','Slept well','ok','ভালো ঘুম হয়েছে']]},
+      {bn:'কয়েকবার ঘুম ভেঙে গিয়েছিল।', en:'I woke up a few times.', sec:10, sig:{sleep:2}, feed:[['Sleep','Woke a few times','soft','কয়েকবার ঘুম ভেঙেছে']]},
+      {bn:'ঘুম আসেনি, প্রায় সারা রাত জেগে ছিলাম।', en:'I could not sleep. I was up most of the night.', sec:9, sig:{sleep:1}, feed:[['Sleep','Hardly slept','soft','প্রায় ঘুমাননি']], hl:[4,'Said '+t.he+' was awake most of the night.','বলেছেন প্রায় সারা রাত জেগে ছিলেন।']}
+    ]},
+    {stage:'Emotional check', bn:'আজ মন কেমন?', en:'How are you feeling today?', opts:[
+      {bn:'ভালো। বারান্দায় সুন্দর রোদ এসেছে।', en:'Good. There is lovely sun on the veranda.', sec:15, sig:{mood:4}, feed:[['Mood','Feeling good','ok','ভালো লাগছে']], hl:[3,'Enjoying the morning sun on the veranda.','বারান্দায় সকালের রোদ উপভোগ করছিলেন।'], ack:{bn:'শুনে খুব ভালো লাগলো।', en:'I am so glad to hear that.'}},
+      {bn:'এই তো... একটু একা একা লাগে।', en:'Alright... a little lonely.', sec:11, sig:{mood:3,lonely:true}, feed:[['Mood','A little lonely','soft','একটু একা লাগছে']], hl:[2,'Said '+t.he+' feels a little lonely.','বলেছেন একটু একা লাগছে।'], ack:{bn:'আমি তো আছি, একটু গল্প করি।', en:'I\u2019m here. Let\u2019s chat for a bit.'}},
+      {bn:'ভালো না। কিছুই ভালো লাগছে না।', en:'Not good. Nothing feels right.', sec:8, sig:{mood:2}, feed:[['Mood','Feeling low','soft','মন খারাপ']], hl:[2,'Said nothing feels right today.','বলেছেন আজ কিছুই ভালো লাগছে না।'], ack:{bn:'মন খারাপ লাগাটা স্বাভাবিক, '+a+'। আমি আপনার সাথে আছি।', en:'It\u2019s alright to feel low, '+A+'. I\u2019m right here with you.'}}
+    ]},
+    {stage:'Memory moment', bn:'চলুন একটা ছোট্ট খেলা খেলি। আমি তিনটা শব্দ বলব, একটু মনে রাখবেন: আম, নদী, লাল।', en:'Let\u2019s play a little game. I\u2019ll say three words, please keep them in mind: mango, river, red.', onAsk:['Memory','Started a three-word recall game','ok','তিন শব্দের স্মৃতির খেলা শুরু'], opts:[
+      {bn:'আচ্ছা, মনে রাখলাম।', en:'Alright, I\u2019ll remember.', sec:8, feed:[['Attention','Took in all three words','ok','তিনটি শব্দই শুনে নিয়েছেন']], ack:{bn:'ধন্যবাদ! একটু পরে জিজ্ঞেস করব।', en:'Thank you! I\u2019ll ask you in a little while.'}},
+      {bn:'আম... নদী... আর কী যেন?', en:'Mango... river... and what was it?', sec:9, feed:[['Attention','Caught two words; Apon repeated the third','ok','দুটি শব্দ ধরেছেন; তৃতীয়টি আপন আবার বলেছে']], ack:{bn:'লাল। আম, নদী, লাল।', en:'Red. Mango, river, red.'}},
+      {bn:'আবার বলো তো?', en:'Say that again?', sec:7, sig:{repeat:1}, feed:[['Attention','Asked to hear the words again','soft','শব্দগুলো আবার শুনতে চেয়েছেন']], ack:{bn:'অবশ্যই। আম, নদী, লাল।', en:'Of course. Mango, river, red.'}}
+    ]}
+  ];
+  if(mem){
+    var mango = mem.replies==='mango', tEn=mem.title, tBn=mem.titleBn||mem.title;
+    var qBn = mem.starterBn || mem.starter || (a+', '+tBn+' নিয়ে একটু গল্প করবেন?');
+    var qEn = mem.starterBn ? (mem.starterEn||'') : (mem.starter ? 'Conversation starter from the Memory Library' : 'Would you tell me a little about '+tEn+'?');
+    steps.push({stage:'Familiar memories', mem:mem, bn:qBn, en:qEn, onAsk:['Companion','Brought up a memory: '+tEn,'ok','একটি স্মৃতি তোলা হয়েছে: '+tBn], opts: mango ? [
+      {bn:'ভালো আছে। কাল গোড়ায় পানি দিয়েছি, নতুন পাতা এসেছে।', en:'It is well. I watered the roots yesterday, and new leaves are coming.', sec:18, sig:{personal:2}, feed:[['Memory','Recalled yesterday\u2019s talk about the mango tree','ok','গতকালের আম গাছের আলাপ মনে পড়েছে']], hl:[3,'Watered the mango tree. New leaves are coming.','আম গাছে পানি দিয়েছেন। নতুন পাতা আসছে।'], ack:{bn:'বাহ! আপনার যত্নে গাছটা ভালো থাকবে।', en:'Wonderful! The tree will thrive with your care.'}},
+      {bn:'আম গাছ... হ্যাঁ, আছে, ভালোই।', en:'The mango tree... yes, it\u2019s fine.', sec:10, sig:{personal:1}, feed:[['Memory','Vague about the mango tree chat','soft','আম গাছের আলাপ অস্পষ্টভাবে মনে আছে']], ack:{bn:'গাছটা আপনার খুব প্রিয়, জানি।', en:'I know that tree is very dear to you.'}},
+      {bn:'কোন গাছ? কী যেন বলছিলাম...', en:'Which tree? What was I saying...', sec:8, sig:{personal:0,wf:1}, feed:[['Memory','Didn\u2019t recall yesterday\u2019s topic','soft','গতকালের বিষয় মনে পড়েনি'],['Language','Paused to find words','soft','শব্দ খুঁজতে থেমেছেন']], ack:{bn:'আপনার উঠানের আম গাছটা, যেটা আপনি নিজের হাতে লাগিয়েছিলেন।', en:'The mango tree in your courtyard, the one you planted yourself.'}}
+    ] : [
+      {bn:'হ্যাঁ, বলি শোনো...', en:'Oh yes, let me tell you...', sec:18, sig:{personal:2}, feed:[['Memory','Talked happily about '+tEn,'ok',tBn+' নিয়ে খুশিমনে কথা বলেছেন']], hl:[3,'Talked happily about '+tEn+'.',tBn+' নিয়ে খুশিমনে কথা বলেছেন।'], ack:{bn:'শুনে খুব ভালো লাগলো!', en:'I loved hearing that!'}},
+      {bn:'হুম... ভালোই।', en:'Hmm... it\u2019s fine.', sec:9, sig:{personal:1}, feed:[['Memory','Short answer about '+tEn,'soft',tBn+' নিয়ে ছোট উত্তর']]},
+      {bn:'কী বললে? ঠিক বুঝলাম না...', en:'What did you say? I didn\u2019t quite follow...', sec:7, sig:{personal:0,repeat:1}, feed:[['Attention','Didn\u2019t follow the question about '+tEn,'soft',tBn+' নিয়ে প্রশ্নটি বুঝতে পারেননি']], ack:{bn:'কোনো ব্যাপার না, পরে আবার গল্প করব।', en:'No problem, we can talk about it another time.'}}
+    ]});
+  }
+  steps.push(
+    {stage:'Social connection', bn:'আজ কার সাথে কথা হয়েছে?', en:'Who have you talked with today?', opts:[
+      {bn:cB+' সকালে ফোন করেছিল, আর পাশের বাসার করিম ভাই এসেছিলেন।', en:c+' called this morning, and Karim bhai from next door came by.', sec:16, sig:{social:2}, feed:[['Social','Talked with '+c+' and Karim bhai','ok',cB+' ও করিম ভাইয়ের সাথে কথা হয়েছে']], hl:[4,'You called, and Karim bhai came by.','আপনি ফোন করেছিলেন, আর করিম ভাই এসেছিলেন।'], ack:{bn:'বাহ, খুব ভালো দিন!', en:'What a good day!'}},
+      {bn:'পাশের বাসার করিম ভাইয়ের সাথে একটু।', en:'Just a little with Karim bhai next door.', sec:10, sig:{social:1}, feed:[['Social','Short chat with a neighbour','soft','প্রতিবেশীর সাথে অল্প কথা']], ack:{bn:'করিম ভাইয়ের সাথে গল্প করলে ভালো লাগে, তাই না?', en:'Chatting with Karim bhai is nice, isn\u2019t it?'}},
+      {bn:'কারো সাথে না। কেউ আসেনি।', en:'No one. Nobody came.', sec:7, sig:{social:0}, feed:[['Social','Hasn\u2019t talked with anyone today','soft','আজ কারো সাথে কথা হয়নি']], hl:[1,'Said nobody had visited or called yet.','বলেছেন এখনো কেউ আসেনি বা ফোন করেনি।'], ack:{bn:'আমি তো আছি। এই যে আমরা গল্প করছি।', en:'Well, I\u2019m here. We\u2019re chatting right now.'}}
+    ]},
+    {stage:'Memory moment', bn:'আচ্ছা '+a+', একটু আগে যে তিনটা শব্দ বলেছিলাম, মনে আছে?', en:A+', do you remember the three words I said earlier?', opts:[
+      {bn:'আম, নদী, লাল।', en:'Mango, river, red.', sec:9, sig:{words:3}, feed:[['Memory','Recalled 3 of 3 words','ok','৩টির মধ্যে ৩টি শব্দ মনে পড়েছে']], hl:[5,'Remembered all three words in the memory game.','স্মৃতির খেলায় তিনটি শব্দই মনে রেখেছেন।'], ack:{bn:'একদম ঠিক! চমৎকার।', en:'Exactly right! Wonderful.'}},
+      {bn:'আম... নদী... আরেকটা... উঁহু, মনে পড়ছে না।', en:'Mango... river... one more... no, it won\u2019t come.', sec:11, sig:{words:2,wf:1}, feed:[['Memory','Recalled 2 of 3 words','ok','৩টির মধ্যে ২টি শব্দ মনে পড়েছে'],['Language','Searched for a word','soft','একটি শব্দ খুঁজেছেন']], ack:{bn:'খুব ভালো! তিন নম্বরটা ছিল "লাল"।', en:'Very good! The third one was "red".'}},
+      {bn:'কী শব্দ? মনে নেই।', en:'What words? I don\u2019t remember.', sec:7, sig:{words:0}, feed:[['Memory','Recalled 0 of 3 words','soft','৩টির মধ্যে ০টি শব্দ মনে পড়েছে']], ack:{bn:'কোনো ব্যাপার না। শব্দগুলো ছিল আম, নদী, লাল। কাল আবার খেলব।', en:'That\u2019s alright. They were mango, river, red. We\u2019ll play again tomorrow.'}}
+    ]},
+    {stage:'Orientation', bn:'আর বলুন তো, আজ কী বার?', en:'And tell me, what day is it today?', opts:[
+      {bn:'আজ '+dBn+'।', en:'It\u2019s '+dEn+'.', sec:6, sig:{orient:1}, feed:[['Orientation','Knew the day','ok','আজ কী বার জানতেন']], ack:{bn:'ঠিক বলেছেন!', en:'That\u2019s right!'}},
+      {bn:'আজ '+pBn+', না?', en:'It\u2019s '+pEn+', isn\u2019t it?', sec:6, sig:{orient:0}, feed:[['Orientation','Said '+pEn+' instead of '+dEn,'soft',dBn+'-এর বদলে '+pBn+' বলেছেন']], ack:{bn:'আজ '+dBn+'। দিনগুলো কত তাড়াতাড়ি চলে যায়, তাই না?', en:'It\u2019s '+dEn+'. The days go by so fast, don\u2019t they?'}},
+      {bn:'ঠিক মনে পড়ছে না।', en:'I can\u2019t quite remember.', sec:5, sig:{orient:0}, feed:[['Orientation','Wasn\u2019t sure of the day','soft','আজ কী বার নিশ্চিত ছিলেন না']], ack:{bn:'আজ '+dBn+'। কোনো ব্যাপার না।', en:'It\u2019s '+dEn+'. No worries at all.'}}
+    ]},
+    {stage:'Family connection', cond:function(g){ return g.social===0 || (g.mood!==undefined && g.mood<=3); },
+      bn:'আজ রাতে '+obj(cB)+' বলি আপনাকে একটা ফোন দিতে?', en:'Shall I ask '+c+' to give you a call tonight?', opts:[
+      {bn:'হ্যাঁ, বলো। ওর গলা শুনতে ইচ্ছা করছে।', en:'Yes, please. I would love to hear her voice.', sec:10, sig:{wantsCall:true}, feed:[['Connection','Would like a call from '+c,'ok',poss(cB)+' ফোন চান']], hl:[0,'Said '+t.he+'\u2019d love to hear your voice tonight.','বলেছেন আজ রাতে আপনার গলা শুনতে চান।'], ack:{bn:'আচ্ছা, আমি বলে দেব।', en:'Okay, I\u2019ll let her know.'}},
+      {bn:'না থাক, ও ব্যস্ত থাকে।', en:'No, leave it. She\u2019s busy.', sec:7, sig:{wantsCall:false}, feed:[['Connection','Didn\u2019t want to disturb '+c,'soft',obj(cB)+' বিরক্ত করতে চাননি']], hl:[0,'Said you\u2019re busy and '+t.he+' didn\u2019t want to disturb you.','বলেছেন আপনি ব্যস্ত, তাই বিরক্ত করতে চাননি।'], ack:{bn:'ঠিক আছে। তবে আপনার কথা শুনলে ও খুশিই হবে।', en:'Alright. Though I think she\u2019d be happy to hear from you.'}}
+    ]},
+    {stage:'Closing', bn:'আজ আপনার সাথে কথা বলে খুব ভালো লাগলো। কাল আবার কথা হবে। ভালো থাকবেন, '+a+'।', en:'It was lovely talking with you. We\u2019ll talk again tomorrow. Take care, '+A+'.', opts:[
+      {bn:'তুমিও ভালো থেকো। আল্লাহ হাফেজ।', en:'You take care too. Allah Hafez.', sec:6, feed:[['Call','Ended the call warmly','ok','আন্তরিকভাবে কল শেষ করেছেন']]},
+      {bn:'আচ্ছা। আল্লাহ হাফেজ।', en:'Alright. Allah Hafez.', sec:4, feed:[['Call','Ended the call','ok','কল শেষ করেছেন']]}
+    ]}
+  );
+  return steps;
+}
+
+/* ---------- AI CALL: engine state ---------- */
+var Call = {state:'idle',steps:[],i:0,msgs:[],seen:0,feed:[],feedSeen:0,sig:{},hl:[],sec:0,shown:0,tick:null,to:[],
+  auto:false,scen:0,speaking:false,thinking:false,awaiting:false,pipe:0,result:null,memUsed:null};
+function later(fn,ms){ var id=setTimeout(fn,ms); Call.to.push(id); return id; }
+function clearCall(){ Call.to.forEach(clearTimeout); Call.to=[]; if(Call.tick){clearInterval(Call.tick);Call.tick=null;} }
+function freshCall(state){
+  clearCall();
+  Call.state=state; Call.steps=[]; Call.i=0; Call.msgs=[]; Call.seen=0; Call.feed=[]; Call.feedSeen=0; Call.sig={}; Call.hl=[];
+  Call.sec=0; Call.shown=0; Call.speaking=false; Call.thinking=false; Call.awaiting=false; Call.pipe=0; Call.result=null; Call.memUsed=null;
+}
+function ring(){ freshCall('ringing'); renderPhone(); renderPipeline(); if(Call.auto) later(answer,2400); }
+function decline(){ freshCall('declined'); renderPhone(); renderPipeline(); }
+function hangup(){ freshCall('idle'); renderPhone(); renderPipeline(); toast(x('Call ended early. Nothing was saved to the report.','কল আগেই শেষ হয়েছে। রিপোর্টে কিছু সংরক্ষণ হয়নি।')); }
+function answer(){
+  freshCall('active');
+  Call.steps=buildSteps(); Call.pipe=1;
+  Call.tick=setInterval(function(){
+    if(Call.shown<Call.sec){ Call.shown=Math.min(Call.sec,Call.shown+3); var el=$('#cclock'); if(el) el.textContent=fmtClock(Call.shown); }
+  },120);
+  renderPhone(); renderPipeline();
+  later(function(){ addFeed(['Call','Call answered, speaking Bangla','ok','কল ধরেছেন, বাংলায় কথা হচ্ছে']); nextStep(); },500);
+}
+function nextStep(){
+  while(Call.i<Call.steps.length && Call.steps[Call.i].cond && !Call.steps[Call.i].cond(Call.sig)) Call.i++;
+  if(Call.i>=Call.steps.length){ endCall(); return; }
+  var st=Call.steps[Call.i];
+  speak({bn:st.bn,en:st.en},function(){
+    if(st.onAsk) addFeed(st.onAsk);
+    if(st.mem) Call.memUsed=st.mem.title;
+    Call.awaiting=true; renderReplies();
+    if(Call.auto) later(pickAuto,1700);
+  });
+}
+function speak(line,cb){
+  Call.thinking=true; renderCaps(); renderReplies();
+  later(function(){
+    Call.thinking=false; Call.speaking=true;
+    Call.msgs.push({who:'ap',bn:line.bn,en:line.en});
+    Call.sec += Math.round(8+line.bn.length*0.25);
+    renderCaps(); renderReplies(); setWave(true);
+    var ms=Math.min(2600,Math.max(1000,500+line.bn.length*22));
+    later(function(){ Call.speaking=false; setWave(false); if(cb) cb(); },ms);
+  },450);
+}
+function reply(idx){
+  if(!Call.awaiting || Call.state!=='active') return;
+  var st=Call.steps[Call.i], o=st&&st.opts[idx]; if(!o) return;
+  Call.awaiting=false;
+  Call.msgs.push({who:'us',bn:o.bn,en:o.en});
+  Call.sec += (o.sec||10);
+  var sig=o.sig||{};
+  Object.keys(sig).forEach(function(k){ if(k==='repeat'||k==='wf') Call.sig[k]=(Call.sig[k]||0)+sig[k]; else Call.sig[k]=sig[k]; });
+  if(o.hl) Call.hl.push(o.hl);
+  renderCaps(); renderReplies();
+  (o.feed||[]).forEach(function(f,j){ later(function(){addFeed(f);},300+j*320); });
+  Call.i++;
+  var go=function(){ later(nextStep,600); };
+  if(o.ack) later(function(){ speak(o.ack,go); },650); else go();
+}
+function pickAuto(){
+  if(!Call.awaiting) return;
+  var st=Call.steps[Call.i]; var idx=Math.min(Call.scen, st.opts.length-1);
+  var b=$('#replies .opt[data-i="'+idx+'"]'); if(b) b.classList.add('picked');
+  later(function(){ reply(idx); },450);
+}
+function addFeed(f){ Call.feed.push({cat:f[0],en:f[1],tone:f[2]||'ok',bn:f[3]||f[1]}); renderPipeline(); }
+function compile(){
+  var g=Call.sig;
+  function has(k){ return g[k]!==undefined; }
+  var words = has('words')?g.words:3;
+  var memory = has('personal') ? words+g.personal : Math.round(words*5/3*10)/10;
+  var hl = Call.hl.slice().sort(function(p,q){return p[0]-q[0];}).map(function(h){return {en:h[1],bn:h[2]||h[1]};}).slice(0,3);
+  return {
+    mood: has('mood')?g.mood:4, sleep: has('sleep')?g.sleep:2, breakfast: has('breakfast')?g.breakfast:1,
+    social: has('social')?g.social:1, memory:memory, orient: has('orient')?g.orient:1,
+    attention: Math.max(0,2-(g.repeat||0)), language: Math.max(0,2-(g.wf||0)),
+    duration: Math.round(Call.sec/6)/10, time: nowHHMM(), lonely: !!g.lonely,
+    wantsCall: has('wantsCall')?g.wantsCall:null, memUsed: Call.memUsed,
+    highlights: hl.length?hl:[{en:'Had a warm chat with Apon.',bn:'আপনের সাথে আন্তরিক আলাপ হয়েছে।'}]
+  };
+}
+function endCall(){
+  Call.awaiting=false; Call.state='ending';
+  Call.result=compile();
+  renderReplies();
+  later(function(){ Call.pipe=2; renderPipeline(); },300);
+  later(function(){ if(Call.tick){clearInterval(Call.tick);Call.tick=null;} Call.shown=Call.sec; Call.state='ended'; renderPhone(); },1300);
+  later(function(){
+    S.history[S.history.length-1]=Call.result; S.done=false; save();
+    Call.pipe=3; addFeed(['Report','Summary sent to '+S.profile.caregiver,'ok',obj(S.profile.caregiverBn||S.profile.caregiver)+' সারসংক্ষেপ পাঠানো হয়েছে']);
+    renderHome(); renderInsights();
+    toast(x('Today\u2019s report is updated for '+S.profile.caregiver+'.', poss(cg())+' জন্য আজকের রিপোর্ট হালনাগাদ হয়েছে।'));
+  },2300);
+}
+
+/* ---------- AI CALL: rendering ---------- */
+function renderCallView(){
+  var t=T();
+  $('#view-call').innerHTML =
+    '<div class="call-top">'+
+      '<div><p class="kicker">'+x('AI companion call','এআই সঙ্গী কল')+'</p><h2 class="h2">'+x('A morning call that feels like family.','সকালের এমন একটি কল, যা পরিবারের মতোই আপন।')+'</h2>'+
+      '<p class="lede">'+x('Ring '+esc(t.en)+'\u2019s phone, then choose how '+t.he+' replies. Or turn on auto-play and pick the kind of day. The voice, the AI and the scoring are all simulated for this demo.', esc(poss(t.bn))+' ফোনে রিং দিন, তারপর তিনি কী উত্তর দেবেন তা বেছে নিন। অথবা অটো-প্লে চালু করে দিনের ধরন বেছে নিন। এই ডেমোতে কণ্ঠ, এআই আর মূল্যায়ন সবই সিমুলেটেড।')+'</p></div>'+
+      '<div class="ctrls" id="ctrls"></div>'+
+    '</div>'+
+    '<div class="call-grid">'+
+      '<div class="phone-col"><div class="phone"><div class="notch"></div><div class="screen" id="screen"></div></div>'+
+      '<p class="phone-note">'+x(esc(t.en)+' hears an ordinary voice call. The captions are shown here for the demo.', esc(t.bn)+' একটি সাধারণ ভয়েস কল শোনেন। ডেমোর জন্য এখানে লেখা দেখানো হচ্ছে।')+'</p></div>'+
+      '<aside class="pipe" id="pipeline" aria-label="'+x('What Apon does with the call','কলের তথ্য দিয়ে আপন যা করে')+'"></aside>'+
+    '</div>';
+  renderCtrls(); renderPhone(); renderPipeline();
+}
+function renderCtrls(){
+  var el=$('#ctrls'); if(!el) return;
+  el.innerHTML =
+    '<button class="switch" data-action="auto" aria-pressed="'+Call.auto+'"><span class="sw" aria-hidden="true"></span>'+x('Auto-play replies','উত্তর অটো-প্লে')+'</button>'+
+    '<div class="ctrl-row" role="group" aria-label="'+x('Kind of day for auto-play','অটো-প্লের জন্য দিনের ধরন')+'">'+SCEN.map(function(s,i){return '<button class="fbtn'+(Call.scen===i?' on':'')+'" data-action="scen" data-i="'+i+'" aria-pressed="'+(Call.scen===i)+'"'+(Call.auto?'':' disabled')+'>'+x(s[0],s[1])+'</button>';}).join('')+'</div>'+
+    '<button class="btn btn-ghost sm" data-action="reset-call">'+icon('refresh')+x('Start over','আবার শুরু করুন')+'</button>';
+}
+function renderPhone(){
+  var el=$('#screen'); if(!el) return;
+  var t=T(), p=S.profile;
+  var bar='<div class="sbar"><span>'+clockPlain()+'</span><span class="batt" aria-hidden="true"><i></i></span></div>';
+  var h='';
+  if(Call.state==='idle'){
+    h=bar+'<div class="lock"><div class="lock-time">'+clockPlain()+'</div><div class="lock-date">'+todayLong()+'</div>'+
+      '<div class="notif"><div class="mk">'+mark(30)+'</div><div><b>'+x('Apon','আপন')+'</b><span>'+x('Morning call at '+fmt12(p.callTime)+'. Answer it like any call.', fmt12(p.callTime)+'-এ সকালের কল। অন্য যেকোনো কলের মতোই ধরুন।')+'</span></div></div>'+
+      '<button class="btn btn-sun" data-action="ring">'+icon('phone')+x('Ring '+esc(t.en)+'\u2019s phone', esc(poss(t.bn))+' ফোনে রিং দিন')+'</button></div>';
+  } else if(Call.state==='ringing'){
+    h=bar+'<div class="incoming"><p class="ring-k">'+x('Incoming call','ইনকামিং কল')+'</p><div class="ring-av">'+mark(70)+'</div>'+
+      '<div class="ring-name">'+x('Apon','আপন')+'</div><div class="ring-bn" lang="bn">'+x('আপন','Apon')+'</div><p class="ring-msg">'+x('Good morning, ','শুভ সকাল, ')+esc(t.a)+' \u2764\uFE0F</p>'+
+      '<div class="ring-actions"><div><button class="round no" data-action="decline" aria-label="'+x('Decline','কেটে দিন')+'">'+icon('phone')+'</button>'+x('Decline','কেটে দিন')+'</div>'+
+      '<div><button class="round yes pulse" data-action="answer" aria-label="'+x('Answer call','কল ধরুন')+'">'+icon('phone')+'</button>'+x('Answer','ধরুন')+'</div></div></div>';
+  } else if(Call.state==='declined'){
+    h=bar+'<div class="state"><div class="end-ic miss">'+icon('phone')+'</div><h3>'+x('Missed call','মিসড কল')+'</h3>'+
+      '<p>'+x('Apon will try again in 30 minutes. If there\u2019s still no answer, '+esc(cg())+' gets a gentle heads-up.','আপন ৩০ মিনিট পর আবার চেষ্টা করবে। তখনো কেউ না ধরলে '+esc(obj(cg()))+' আলতো করে জানানো হবে।')+'</p>'+
+      '<div class="btns"><button class="btn btn-sun" data-action="ring">'+x('Ring again','আবার রিং দিন')+'</button></div></div>';
+  } else if(Call.state==='ended'){
+    var r=Call.result||todayRec();
+    h=bar+'<div class="state"><div class="end-ic">'+icon('check')+'</div><h3>'+x('Call ended','কল শেষ')+'</h3><p style="opacity:.75">'+fmtDur(Call.sec)+'</p>'+
+      '<p lang="bn" style="font-size:18px;opacity:1;margin-top:12px">আল্লাহ হাফেজ</p>'+
+      '<p>'+esc(headline(r))+'</p>'+
+      '<div class="btns"><button class="btn btn-sun" data-action="see-report">'+x('See today\u2019s report','আজকের রিপোর্ট দেখুন')+'</button><button class="btn btn-light" data-action="ring">'+x('Call again','আবার কল করুন')+'</button></div></div>';
+  } else {
+    h=bar+'<div class="chead"><div class="mk" style="width:40px;height:40px;border-radius:50%">'+mark(28)+'</div>'+
+      '<div><div class="cname">'+x('Apon<span lang="bn">আপন</span>','আপন<span>Apon</span>')+'</div><div class="cclock" id="cclock">'+fmtClock(Call.shown)+'</div></div>'+
+      '<div class="wave" id="wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>'+
+      '<button class="hang" data-action="hangup" aria-label="'+x('End call','কল শেষ করুন')+'">'+icon('phone')+'</button></div>'+
+      '<div class="caps" id="caps" aria-live="polite"></div><div class="replies" id="replies"></div>';
+  }
+  el.innerHTML=h;
+  if(Call.state==='active'||Call.state==='ending'){ Call.seen=0; renderCaps(); renderReplies(); setWave(Call.speaking); }
+}
+function renderCaps(){
+  var c=$('#caps'); if(!c) return; var t=T(), showEn=LANG!=='bn';
+  var html='<p class="caps-note">'+x('Captions for the demo. '+esc(t.en)+' simply hears a friendly voice.','ডেমোর জন্য লেখা দেখানো হচ্ছে। '+esc(t.bn)+' শুধু একটি আপন কণ্ঠ শোনেন।')+'</p>';
+  html+=Call.msgs.map(function(m,i){
+    return '<div class="bub '+m.who+(i>=Call.seen?' fresh':'')+'"><div class="bn" lang="bn">'+esc(m.bn)+'</div>'+(showEn&&m.en?'<div class="en">'+esc(m.en)+'</div>':'')+'</div>';
+  }).join('');
+  if(Call.thinking) html+='<div class="typing" aria-label="'+x('Apon is listening','আপন শুনছে')+'"><i></i><i></i><i></i></div>';
+  c.innerHTML=html; Call.seen=Call.msgs.length; c.scrollTop=c.scrollHeight;
+}
+function renderReplies(){
+  var r=$('#replies'); if(!r) return; var t=T(), showEn=LANG!=='bn';
+  if(Call.state==='ending'){ r.innerHTML='<div class="rep-wait">'+x('Call ending. Writing '+esc(cg())+'\u2019s summary\u2026','কল শেষ হচ্ছে। '+esc(poss(cg()))+' জন্য সারসংক্ষেপ লেখা হচ্ছে\u2026')+'</div>'; return; }
+  if(Call.state!=='active') { r.innerHTML=''; return; }
+  if(!Call.awaiting){ r.innerHTML='<div class="rep-wait">'+(Call.speaking?x('Apon is speaking','আপন কথা বলছে'):x('Listening','শুনছে'))+'\u2026</div>'; return; }
+  var st=Call.steps[Call.i];
+  var lbl = Call.auto ? x('Auto-playing a '+SCEN[Call.scen][0].toLowerCase(),'অটো-প্লে: '+SCEN[Call.scen][1]) : x('Choose '+esc(t.en)+'\u2019s reply', esc(poss(t.bn))+' উত্তর বেছে নিন');
+  r.innerHTML='<div class="rep-l"><span>'+lbl+'</span><span>'+esc(x(st.stage,STAGE_BN[st.stage]||st.stage))+'</span></div>'+
+    st.opts.map(function(o,i){ return '<button class="opt" data-action="reply" data-i="'+i+'"><div class="bn" lang="bn">'+esc(o.bn)+'</div>'+(showEn?'<div class="en">'+esc(o.en)+'</div>':'')+'</button>'; }).join('');
+}
+function setWave(on){ var w=$('#wave'); if(w) w.classList.toggle('on',!!on); }
+
+function renderPipeline(){
+  var el=$('#pipeline'); if(!el) return;
+  var t=T(), p=Call.pipe, c=esc(cg());
+  function stg(num,title,sub,state){ return '<div class="stg '+state+'"><div class="stg-dot">'+(state==='done'?icon('check'):n(num))+'</div><div class="stg-t">'+title+'</div><div class="stg-s">'+sub+'</div></div>'; }
+  var s1=p===0?'':p>=2?'done':'live', s2=p===0?'':p>=2?'done':(Call.feed.length>1?'live':''), s3=p===2?'live':p===3?'done':'', s4=p===3?'done':'';
+  var stages='<div class="stages">'+
+    stg(1,x('Conversation','কথোপকথন'),x('Warm Bangla chat, personal memories, empathy','আন্তরিক বাংলা আলাপ, ব্যক্তিগত স্মৃতি, সহমর্মিতা'),s1)+
+    stg(2,x('Signal extraction','সংকেত শনাক্তকরণ'),x('Recall, orientation, routine, mood','স্মৃতি, সময়জ্ঞান, রুটিন, মন'),s2)+
+    stg(3,x('Baseline comparison','বেসলাইনের সাথে তুলনা'),x('Against '+t.his+' own usual pattern','তাঁর নিজের স্বাভাবিক ধরনের সাথে'),s3)+
+    stg(4,x('Family report','পরিবারের রিপোর্ট'),x('A short summary for '+c, esc(poss(cg()))+' জন্য ছোট সারসংক্ষেপ'),s4)+'</div>';
+  var body;
+  if(!Call.feed.length){
+    body='<div class="empty"><p>'+x('Ring the phone to start. As '+esc(t.en)+' answers, Apon turns the chat into a few simple signals, compares them with '+t.his+' usual pattern and writes '+c+' a short note.','ফোনে রিং দিয়ে শুরু করুন। '+esc(t.bn)+' যখন উত্তর দেন, আপন আলাপটিকে কয়েকটি সহজ সংকেতে রূপ দেয়, তাঁর স্বাভাবিক ধরনের সাথে তুলনা করে, আর '+esc(poss(cg()))+' জন্য একটি ছোট নোট লেখে।')+'</p><p class="small muted">'+x('Nothing here is a test score or a diagnosis. It\u2019s a way of noticing change early.','এখানে কিছুই পরীক্ষার নম্বর বা রোগ নির্ণয় নয়। এটি আগেভাগে পরিবর্তন লক্ষ করার একটি উপায়।')+'</p></div>';
+  } else {
+    body='<div class="feed-h"><span>'+x('Signals noticed','লক্ষ করা সংকেত')+'</span><span>'+n(Call.feed.length)+'</span></div><ul class="feed" id="feed">'+
+      Call.feed.map(function(f,i){ return '<li'+(i>=Call.feedSeen?' class="fresh"':'')+'><span class="tag">'+esc(x(f.cat,CAT_BN[f.cat]||f.cat))+'</span><span>'+esc(x(f.en,f.bn))+'</span><span class="dot '+f.tone+'"></span></li>'; }).join('')+'</ul>';
+  }
+  var cmp='';
+  if(p===2) cmp='<div class="cmp"><div class="working"><span class="spin" aria-hidden="true"></span>'+x('Comparing with '+esc(t.en)+'\u2019s baseline\u2026', esc(poss(t.bn))+' বেসলাইনের সাথে তুলনা চলছে\u2026')+'</div></div>';
+  if(p===3 && Call.result){
+    var r=Call.result;
+    cmp='<div class="cmp"><h4>'+x('Today against '+t.his+' usual','আজ বনাম তাঁর স্বাভাবিক')+'</h4><table><thead><tr><th>'+x('Signal','সংকেত')+'</th><th>'+x('Today','আজ')+'</th><th>'+x('Usual','স্বাভাবিক')+'</th><th>'+x('Status','অবস্থা')+'</th></tr></thead><tbody>'+
+      METRICS.map(function(m){ var v=m.get(r), st=dailySt(m,v); return '<tr><td>'+mlabel(m)+'</td><td>'+esc(m.day(v))+'</td><td>'+esc(m.fmt(m.base))+'</td><td><span class="pill '+st+'">'+(st==='ok'?x('Within usual','স্বাভাবিকের মধ্যে'):x('Different today','আজ আলাদা'))+'</span></td></tr>'; }).join('')+
+      '</tbody></table><p class="small" style="margin:12px 0 0;color:var(--ink-2)">'+x('One day is never treated as a trend. Weekly patterns are on the Insights screen.','এক দিনকে কখনো প্রবণতা ধরা হয় না। সাপ্তাহিক ধরন বিশ্লেষণ পাতায় আছে।')+'</p></div>';
+  }
+  el.innerHTML='<div class="pipe-head"><h3 class="h3">'+x('Behind the call','কলের পেছনে')+'</h3><span class="small muted">'+x('Simulated AI workflow','সিমুলেটেড এআই কার্যপ্রবাহ')+'</span></div>'+stages+body+cmp+
+    '<div class="prod">'+icon('shield')+'<p>'+x('In a real product, a language model would handle the warm conversation and summaries, while separate, testable engines score recall and orientation and compare trends with the baseline. Here every step is scripted.','বাস্তব পণ্যে একটি ভাষা মডেল আন্তরিক আলাপ ও সারসংক্ষেপ সামলাবে, আর আলাদা, পরীক্ষাযোগ্য ইঞ্জিন স্মৃতি ও সময়জ্ঞান মূল্যায়ন করবে এবং বেসলাইনের সাথে প্রবণতা মেলাবে। এখানে প্রতিটি ধাপ আগে থেকে লেখা।')+'</p></div>';
+  Call.feedSeen=Call.feed.length;
+  var fe=$('#feed'); if(fe) fe.scrollTop=fe.scrollHeight;
+}
+
+/* =========================================================
+   (f) Language, navigation, toast, events, init
+   ========================================================= */
+function applyShell(){
+  document.documentElement.lang = LANG==='bn'?'bn':'en';
+  document.title = x('Apon (আপন) | Companion calls for families','আপন (Apon) | পরিবারের জন্য সঙ্গী কল');
+  $$('[data-en][data-bn]').forEach(function(el){ el.textContent = LANG==='bn'?el.getAttribute('data-bn'):el.getAttribute('data-en'); });
+  $$('.lang [data-l]').forEach(function(b){ var on=b.getAttribute('data-l')===LANG; b.classList.toggle('on',on); b.setAttribute('aria-pressed',String(on)); });
+  var w=$('#who-name'); if(w) w.textContent=cg();
+  var wa=$('#who-av'); if(wa) wa.textContent=cg().charAt(0);
+}
+function setLang(l){
+  if(l===LANG) return;
+  LANG = l==='bn'?'bn':'en';
+  try{ window.localStorage.setItem(LANG_KEY,LANG); }catch(e){}
+  applyShell(); renderHome(); renderPatient(); renderMemory(); renderInsights();
+  /* Re-render the call screen without interrupting a call in progress */
+  var keepScroll=Call.state;
+  renderCallView();
+  if(keepScroll==='active'||keepScroll==='ending'){ var cc=$('#cclock'); if(cc) cc.textContent=fmtClock(Call.shown); }
+  toast(x('Switched to English.','বাংলা চালু হয়েছে।'));
+}
+var VIEWS=['home','call','patient','memory','insights'];
+function show(v,noScroll){
+  if(VIEWS.indexOf(v)<0) v='home';
+  $$('.view').forEach(function(el){ el.classList.toggle('on', el.id==='view-'+v); });
+  $$('.tabs [data-go], .bnav [data-go]').forEach(function(b){ var on=b.getAttribute('data-go')===v; b.classList.toggle('on',on); if(on) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
+  if(!noScroll) window.scrollTo(0,0);
+  try{ history.replaceState(null,'','#'+v); }catch(e){}
+}
+var toastTimer=null, toastUndo=null;
+function toast(msg,undo){
+  var el=$('#toast'); if(!el) return;
+  toastUndo=undo||null;
+  el.innerHTML='<span>'+esc(msg)+'</span>'+(undo?'<button data-action="toast-undo">'+x('Undo','ফিরিয়ে আনুন')+'</button>':'');
+  el.classList.add('on'); clearTimeout(toastTimer);
+  toastTimer=setTimeout(function(){ el.classList.remove('on'); toastUndo=null; }, undo?6000:3400);
+}
+function renderAll(){ applyShell(); renderHome(); renderCallView(); renderPatient(); renderMemory(); renderInsights(); }
+function scrollToToday(){ setTimeout(function(){ var el=$('#today'); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); },60); }
+function val(id){ var el=$('#'+id); return el?el.value:''; }
+
+function addInterest(){
+  var inp=$('#interest-in'); if(!inp) return; var v=inp.value.trim();
+  if(!v){ inp.focus(); return; }
+  if(S.interests.some(function(q){ return tx(q).toLowerCase()===v.toLowerCase() || (q.en&&q.en.toLowerCase()===v.toLowerCase()); })){ toast(x(v+' is already on the list.', v+' ইতিমধ্যে তালিকায় আছে।')); return; }
+  S.interests.push({en:v.slice(0,40),bn:v.slice(0,40)}); save(); renderPatient(); var nn=$('#interest-in'); if(nn) nn.focus(); toast(x('Interest added.','আগ্রহ যোগ হয়েছে।'));
+}
+function saveProfile(){
+  var name=val('f-name').trim(), age=parseInt(val('f-age'),10), term=val('f-term'), city=val('f-city').trim(), living=val('f-living').trim(), time=val('f-time')||'10:00';
+  if(!name){ editErr=x('Add a name so Apon knows who it is calling.','একটি নাম দিন, যাতে আপন জানে কাকে ফোন করছে।'); renderPatient(); return; }
+  if(!(age>=45 && age<=110)){ editErr=x('Enter an age between 45 and 110.','৪৫ থেকে ১১০-এর মধ্যে বয়স লিখুন।'); renderPatient(); return; }
+  var sfx = LANG==='bn'?'Bn':'';           /* edit the fields for the language being shown */
+  S.profile['name'+sfx]=name.slice(0,60);
+  if(city) S.profile['city'+sfx]=city.slice(0,60);
+  if(living) S.profile['living'+sfx]=living.slice(0,400);
+  S.profile.age=age; S.profile.term=TERMS[term]?term:'abba'; S.profile.callTime=time;
+  editing=false; editErr=''; save(); freshCall('idle'); renderAll(); show('patient',true); toast(x('Profile saved.','প্রোফাইল সংরক্ষণ হয়েছে।'));
+}
+function saveMemory(){
+  var type=val('m-type'), title=val('m-title').trim(), role=val('m-role').trim(), starter=val('m-starter').trim(), detail=val('m-detail').trim();
+  if(!title){ mErr=x('Add a name or title for this memory.','এই স্মৃতির একটি নাম বা শিরোনাম দিন।'); keepForm(type,title,role,starter,detail); return; }
+  if(!detail){ mErr=x('Add a few details so Apon can talk about it naturally.','কিছু বিস্তারিত লিখুন, যাতে আপন স্বাভাবিকভাবে এ নিয়ে কথা বলতে পারে।'); keepForm(type,title,role,starter,detail); return; }
+  var m={id:'m-'+Date.now().toString(36),type:TYPE_LABEL[type]?type:'story',title:title.slice(0,60),detail:detail.slice(0,400),
+    by:'Added by '+S.profile.caregiver+', today', byBn:(S.profile.caregiverBn||S.profile.caregiver)+' আজ যোগ করেছেন'};
+  if(m.type==='family') m.role=role.slice(0,40)||x('Family','পরিবার');
+  if(m.type==='hobby'){ m.like=m.title; m.likeBn=m.title; }
+  if(starter) m.starter=starter.slice(0,160);
+  S.memories.unshift(m); mForm=false; mErr=''; if(mFilter!=='all'&&mFilter!==m.type) mFilter='all';
+  save(); renderMemory(); renderHome();
+  toast(x('Memory saved. Pin it to hear Apon use it on the next call.','স্মৃতি সংরক্ষণ হয়েছে। পরের কলে আপন এটি ব্যবহার করবে, যদি পিন করেন।'));
+}
+function keepForm(type,title,role,starter,detail){
+  renderMemory();
+  var set=function(id,v){ var el=$('#'+id); if(el) el.value=v; };
+  set('m-type',type); set('m-title',title); set('m-role',role); set('m-starter',starter); set('m-detail',detail);
+}
+
+document.addEventListener('click',function(e){
+  var go=e.target.closest('[data-go]');
+  if(go){ show(go.getAttribute('data-go')); return; }
+  var el=e.target.closest('[data-action]'); if(!el) return;
+  var a=el.getAttribute('data-action');
+  switch(a){
+    case 'lang': setLang(el.getAttribute('data-l')); break;
+    case 'hero-call': show('call'); ring(); break;
+    case 'hero-answer': show('call'); answer(); break;
+    case 'hero-decline': toast(x('Apon will try again in 30 minutes.','আপন ৩০ মিনিট পর আবার চেষ্টা করবে।')); break;
+    case 'to-today': scrollToToday(); break;
+    case 'done': S.done=true; save(); renderHome(); toast(x('Marked as done.','সম্পন্ন হিসেবে চিহ্নিত হয়েছে।')); break;
+    case 'undo-done': S.done=false; save(); renderHome(); break;
+    case 'remind': toast(x('Reminder set for 8:00 PM. This is a demo, so no notification will be sent.','রাত ৮টার জন্য রিমাইন্ডার সেট হয়েছে। এটি ডেমো, তাই কোনো নোটিফিকেশন যাবে না।')); break;
+    case 'ring': ring(); break;
+    case 'answer': answer(); break;
+    case 'decline': decline(); break;
+    case 'hangup': hangup(); break;
+    case 'reply': reply(parseInt(el.getAttribute('data-i'),10)); break;
+    case 'auto':
+      Call.auto=!Call.auto; renderCtrls(); renderReplies();
+      if(Call.auto && Call.awaiting) later(pickAuto,900);
+      if(Call.auto && Call.state==='ringing') later(answer,1200);
+      break;
+    case 'scen': Call.scen=parseInt(el.getAttribute('data-i'),10)||0; renderCtrls(); renderReplies(); break;
+    case 'reset-call': freshCall('idle'); renderPhone(); renderPipeline(); break;
+    case 'see-report': show('home'); scrollToToday(); break;
+    case 'edit-profile': editing=true; editErr=''; renderPatient(); var f=$('#f-name'); if(f) f.focus(); break;
+    case 'cancel-edit': editing=false; editErr=''; renderPatient(); break;
+    case 'save-profile': saveProfile(); break;
+    case 'add-interest': addInterest(); break;
+    case 'del-interest':
+      var i=parseInt(el.getAttribute('data-i'),10), removed=S.interests[i];
+      S.interests.splice(i,1); save(); renderPatient();
+      toast(x(tx(removed)+' removed.', tx(removed)+' সরানো হয়েছে।'),function(){ S.interests.splice(i,0,removed); save(); renderPatient(); });
+      break;
+    case 'mfilter': mFilter=el.getAttribute('data-f'); renderMemory(); break;
+    case 'open-mem': mForm=true; mErr=''; renderMemory(); var mt=$('#m-title'); if(mt) mt.focus(); break;
+    case 'close-mem': mForm=false; mErr=''; renderMemory(); break;
+    case 'save-mem': saveMemory(); break;
+    case 'pin':
+      var id=el.getAttribute('data-id'), wasPinned=S.pinned===id;
+      S.pinned = wasPinned?null:id; save(); renderMemory(); renderHome();
+      if(!wasPinned){ var mm=S.memories.filter(function(q){return q.id===id;})[0], nm=mm?mf(mm,'title'):''; toast(x('Apon will bring up \u201C'+nm+'\u201D on the next call.','পরের কলে আপন \u201C'+nm+'\u201D নিয়ে কথা বলবে।')); }
+      break;
+    case 'del-mem':
+      var did=el.getAttribute('data-id'), idx=-1;
+      S.memories.forEach(function(q,k){ if(q.id===did) idx=k; });
+      if(idx<0) break;
+      var gone=S.memories.splice(idx,1)[0], wasPin=S.pinned===did, gt=mf(gone,'title');
+      if(wasPin) S.pinned=null;
+      save(); renderMemory(); renderHome();
+      toast(x('\u201C'+gt+'\u201D removed.','\u201C'+gt+'\u201D সরানো হয়েছে।'),function(){ S.memories.splice(idx,0,gone); if(wasPin) S.pinned=did; save(); renderMemory(); renderHome(); });
+      break;
+    case 'toast-undo': if(toastUndo){ var u=toastUndo; toastUndo=null; u(); } $('#toast').classList.remove('on'); break;
+    case 'reset-demo':
+      S=seed(); save(); editing=false; mForm=false; mFilter='all'; Call.auto=false; Call.scen=0; freshCall('idle'); renderAll(); show('home'); toast(x('Demo data reset.','ডেমো ডেটা রিসেট হয়েছে।'));
+      break;
+  }
+});
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Enter') return;
+  if(e.target && e.target.id==='interest-in'){ e.preventDefault(); addInterest(); }
+});
+setInterval(function(){ if(Call.state==='idle'){ var s=$('#screen .lock-time'); if(s) s.textContent=clockPlain(); } },20000);
+
+renderAll();
+var start=(location.hash||'').replace('#','');
+show(VIEWS.indexOf(start)>-1?start:'home');
+})();
+</script>
+</body>
+</html>
